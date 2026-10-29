@@ -34,7 +34,10 @@ export const JobsView: React.FC<JobsViewProps> = ({ jobs, health, onRefreshJobs 
       <div className="glass-panel-strong rounded-3xl p-5 border border-white/80 shadow-lg">
         <div className="flex flex-wrap items-center justify-between pb-4 border-b border-black/5 gap-4">
           <div>
-            <div className="flex items-center space-x-2">
+            <div className="text-[10px] uppercase font-mono tracking-wider text-[#77736D]">
+              07 · CONCURRENCY CONTROL & WORKER PIPELINE
+            </div>
+            <div className="flex items-center space-x-2 mt-0.5">
               <Cpu className="w-5 h-5 text-[#205A46]" />
               <h2 className="text-lg font-extrabold text-[#15211D] tracking-tight">
                 Solver Concurrency & Job Pipeline

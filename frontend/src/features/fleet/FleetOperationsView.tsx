@@ -52,6 +52,9 @@ export const FleetOperationsView: React.FC<FleetOperationsViewProps> = ({
         {/* Top Header & Search Bar */}
         <div className="flex flex-wrap items-center justify-between pb-4 border-b border-black/5 gap-4">
           <div>
+            <div className="text-[10px] uppercase font-mono tracking-wider text-[#77736D]">
+              02 · FLEET TELEMETRY & UNITS
+            </div>
             <h2 className="text-lg font-extrabold text-[#15211D] tracking-tight">
               Fleet Operations & Telemetry
             </h2>
@@ -88,6 +91,36 @@ export const FleetOperationsView: React.FC<FleetOperationsViewProps> = ({
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* Fieldnotes Metric Strip */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 my-3">
+          <div className="p-3 bg-white/70 border border-black/5 rounded-2xl">
+            <span className="text-[10px] uppercase font-mono tracking-wider text-[#77736D] block">Assigned Fleet</span>
+            <div className="text-xl font-black text-[#15211D] tabular-nums mt-0.5">{plan.vehicles.length} Units</div>
+            <span className="text-[10px] text-[#205A46] font-medium">100% active dispatch</span>
+          </div>
+          <div className="p-3 bg-white/70 border border-black/5 rounded-2xl">
+            <span className="text-[10px] uppercase font-mono tracking-wider text-[#77736D] block">Payload Utilization</span>
+            <div className="text-xl font-black text-[#15211D] tabular-nums mt-0.5">
+              {Math.round((plan.vehicles.reduce((acc, v) => acc + v.used_capacity_kg, 0) / plan.vehicles.reduce((acc, v) => acc + v.capacity_kg, 1)) * 100)}%
+            </div>
+            <span className="text-[10px] text-[#68756F] font-medium tabular-nums">{plan.vehicles.reduce((acc, v) => acc + v.used_capacity_kg, 0)} / {plan.vehicles.reduce((acc, v) => acc + v.capacity_kg, 0)} kg</span>
+          </div>
+          <div className="p-3 bg-white/70 border border-black/5 rounded-2xl">
+            <span className="text-[10px] uppercase font-mono tracking-wider text-[#77736D] block">Fleet Stop Progress</span>
+            <div className="text-xl font-black text-[#205A46] tabular-nums mt-0.5">
+              {plan.completed_stops} / {plan.total_stops}
+            </div>
+            <span className="text-[10px] text-[#68756F] font-medium tabular-nums">{Math.round((plan.completed_stops / plan.total_stops) * 100)}% complete</span>
+          </div>
+          <div className="p-3 bg-white/70 border border-black/5 rounded-2xl">
+            <span className="text-[10px] uppercase font-mono tracking-wider text-[#77736D] block">Impending Delays</span>
+            <div className="text-xl font-black text-[#C6534C] tabular-nums mt-0.5">
+              {plan.vehicles.filter(v => v.status === 'at_risk' || v.eta_deviation_minutes > 5).length} Units
+            </div>
+            <span className="text-[10px] text-[#C6534C] font-medium">SLA exposure buffer active</span>
           </div>
         </div>
 
@@ -189,8 +222,8 @@ export const FleetOperationsView: React.FC<FleetOperationsViewProps> = ({
                     </td>
 
                     {/* Freshness */}
-                    <td className="py-3.5 pr-3 tabular-nums text-[#68756F] text-[11px]">
-                      14:40:12 IST
+                    <td className="py-3.5 pr-3 tabular-nums text-[#68756F] text-[11px] font-mono">
+                      {vehicle.last_ping_iso ? vehicle.last_ping_iso.split('T')[1].slice(0, 8) + ' IST' : '14:40:12 IST'}
                     </td>
 
                     {/* Action */}

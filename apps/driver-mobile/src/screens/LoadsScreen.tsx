@@ -57,9 +57,9 @@ export const LoadsScreen: React.FC = () => {
             <View style={[styles.segmentBar, { flex: 2, backgroundColor: '#D78A45' }]} />
           </View>
           <View style={styles.segmentLegend}>
-            <Text style={styles.legendText}>🟢 Pharmaceuticals (180kg)</Text>
-            <Text style={styles.legendText}>🔵 Perishables (140kg)</Text>
-            <Text style={styles.legendText}>🟠 Electronics (100kg)</Text>
+            <Text style={styles.legendText}>Pharma (180kg)</Text>
+            <Text style={styles.legendText}>· Perishables (140kg)</Text>
+            <Text style={styles.legendText}>· Electronics (100kg)</Text>
           </View>
         </View>
 

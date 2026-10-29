@@ -48,7 +48,10 @@ export const SlaRiskView: React.FC<SlaRiskViewProps> = ({ plan, onInspectStop })
       <div className="glass-panel-strong rounded-3xl p-5 border border-white/80 shadow-lg">
         <div className="flex flex-wrap items-center justify-between pb-4 border-b border-black/5 gap-4">
           <div>
-            <div className="flex items-center space-x-2">
+            <div className="text-[10px] uppercase font-mono tracking-wider text-[#77736D]">
+              04 · CONTRACTUAL RISK & SLA PENALTIES
+            </div>
+            <div className="flex items-center space-x-2 mt-0.5">
               <ShieldAlert className="w-5 h-5 text-[#C6534C]" />
               <h2 className="text-lg font-extrabold text-[#15211D] tracking-tight">
                 SLA Violation Risk & Contractual Exposure
@@ -63,13 +66,31 @@ export const SlaRiskView: React.FC<SlaRiskViewProps> = ({ plan, onInspectStop })
             <DataBadge badge="Simulated · held-out run" size="md" />
             <div className="text-right">
               <div className="text-[10px] uppercase font-bold text-[#929E99]">Total Financial Exposure</div>
-              <div className="text-xl font-black text-[#C6534C] tabular-nums">
+              <div className="text-2xl font-black text-[#C6534C] tabular-nums">
                 ₹{plan.total_sla_exposure_inr.toLocaleString('en-IN')}
                 <span className="text-xs font-normal text-[#68756F] ml-1.5">
                   ({plan.assumed_rate_label})
                 </span>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Risk Distribution Segmented Bar (Fieldnotes & RouteIQ style) */}
+        <div className="mt-4 p-3.5 bg-white/70 border border-black/5 rounded-2xl">
+          <div className="flex justify-between items-center text-[10px] uppercase font-mono text-[#77736D] mb-1.5">
+            <span>Commitment Risk Exposure Spectrum</span>
+            <span>{displayedStops.length} Monitored Stops</span>
+          </div>
+          <div className="w-full h-2.5 rounded-full bg-black/5 overflow-hidden flex">
+            <div className="h-full bg-[#205A46]" style={{ width: '74%' }} title="On-Schedule: 74%" />
+            <div className="h-full bg-[#D78A45]" style={{ width: '16%' }} title="Window Risk: 16%" />
+            <div className="h-full bg-[#C6534C]" style={{ width: '10%' }} title="Critical Violation Risk: 10%" />
+          </div>
+          <div className="flex justify-between items-center text-[10px] text-[#68756F] mt-2 font-mono">
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#205A46]" /> Within SLA (&lt;15% P_late)</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#D78A45]" /> Impending Risk (15–40% P_late)</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#C6534C]" /> High Penalty Risk (&gt;40% P_late)</span>
           </div>
         </div>
 

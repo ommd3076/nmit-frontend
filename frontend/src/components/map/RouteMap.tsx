@@ -25,7 +25,15 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   const mapInstanceRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const [tileError, setTileError] = useState(false);
-  const [webglFailed, setWebglFailed] = useState(false);
+  const [webglFailed, setWebglFailed] = useState<boolean>(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return true;
+    try {
+      const canvas = document.createElement('canvas');
+      return !(window.WebGLRenderingContext && (canvas.getContext('webgl2') || canvas.getContext('webgl')));
+    } catch {
+      return true;
+    }
+  });
 
   // SVG Pan & Zoom state for Euclidean & SVG basemaps
   const [svgZoom, setSvgZoom] = useState<number>(1);
@@ -88,12 +96,11 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         zoom: 11.5,
         attributionControl: false
       });
-    } catch (err) {
-      console.warn('MapLibre GL WebGL initialization skipped:', err);
-      setTimeout(() => {
+    } catch {
+      queueMicrotask(() => {
         setWebglFailed(true);
         setTileError(true);
-      }, 0);
+      });
       return;
     }
 
@@ -259,6 +266,34 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         markersRef.current.push(vMarker);
       });
 
+      // 4. Add Central Depot Hub Marker to MapLibre
+      const depotEl = document.createElement('div');
+      depotEl.className = 'arq-depot-marker select-none';
+      depotEl.title = 'Bengaluru Central Dispatch Hub (Depot)';
+      depotEl.innerHTML = `
+        <div style="
+          background: #17231F;
+          color: #FFFFFF;
+          padding: 2px 7px;
+          border-radius: 9999px;
+          font-size: 10px;
+          font-weight: 700;
+          font-family: inherit;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          border: 2px solid #FFFFFF;
+          box-shadow: 0 2px 8px rgba(16, 24, 40, 0.35);
+        ">
+          <span style="color: #A8DBC9; font-weight: 800;">D</span>
+          <span>Central Hub</span>
+        </div>
+      `;
+      const depotMarker = new maplibregl.Marker({ element: depotEl })
+        .setLngLat([centerLng, centerLat])
+        .addTo(map);
+      markersRef.current.push(depotMarker);
+
       // Fit bounds if available
       if (plan.bounds) {
         map.fitBounds(plan.bounds, {
@@ -415,17 +450,17 @@ export const RouteMap: React.FC<RouteMapProps> = ({
             </defs>
             <rect width="100" height="100" fill="url(#arq-svg-grid)" />
 
-            {/* Axis / Coordinate Reference Marks */}
-            <text x="3" y="97" fontSize="2.4" fill="#929E99" fontFamily="monospace" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {/* Axis / Coordinate Reference Marks - Stable Architectural Alignment */}
+            <text x="3" y="97" fontSize="2.2" fill="#77736D" fontFamily="ui-monospace, monospace" textAnchor="start" dominantBaseline="auto" style={{ fontVariantNumeric: 'tabular-nums' }}>
               {isCartesian ? '0,0' : '77.52°E, 12.91°N'}
             </text>
-            <text x={isCartesian ? '90' : '74'} y="97" fontSize="2.4" fill="#929E99" fontFamily="monospace" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <text x="97" y="97" fontSize="2.2" fill="#77736D" fontFamily="ui-monospace, monospace" textAnchor="end" dominantBaseline="auto" style={{ fontVariantNumeric: 'tabular-nums' }}>
               {isCartesian ? '100,0' : '77.72°E, 12.91°N'}
             </text>
-            <text x="3" y="6" fontSize="2.4" fill="#929E99" fontFamily="monospace" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <text x="3" y="6" fontSize="2.2" fill="#77736D" fontFamily="ui-monospace, monospace" textAnchor="start" dominantBaseline="auto" style={{ fontVariantNumeric: 'tabular-nums' }}>
               {isCartesian ? '0,100' : '77.52°E, 13.06°N'}
             </text>
-            <text x={isCartesian ? '87' : '74'} y="6" fontSize="2.4" fill="#929E99" fontFamily="monospace" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <text x="97" y="6" fontSize="2.2" fill="#77736D" fontFamily="ui-monospace, monospace" textAnchor="end" dominantBaseline="auto" style={{ fontVariantNumeric: 'tabular-nums' }}>
               {isCartesian ? '100,100' : '77.72°E, 13.06°N'}
             </text>
 
@@ -462,39 +497,81 @@ export const RouteMap: React.FC<RouteMapProps> = ({
                     strokeDasharray={isRouteSelected ? 'none' : '2, 1'}
                     opacity={isRouteSelected || !selectedVehicleId ? 0.95 : 0.28}
                   />
+
+                  {/* Direction Heading Chevrons along route (Reference 6) */}
+                  {route.geometry_coordinates.slice(0, -1).map(([x1, y1], segIdx) => {
+                    const [x2, y2] = route.geometry_coordinates[segIdx + 1];
+                    const [px1, py1] = projectCoord(x1, y1);
+                    const [px2, py2] = projectCoord(x2, y2);
+                    const midX = (px1 + px2) / 2;
+                    const midY = (py1 + py2) / 2;
+                    const dx = px2 - px1;
+                    const dy = py2 - py1;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 4) return null;
+                    const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+
+                    return (
+                      <polygon
+                        key={`chev-${route.id}-${segIdx}`}
+                        points="-0.6,-0.7 0.9,0 -0.6,0.7"
+                        fill={isRouteSelected ? '#FFFFFF' : (route.color_token || '#2F5BEA')}
+                        transform={`translate(${midX.toFixed(2)}, ${midY.toFixed(2)}) rotate(${angle.toFixed(1)})`}
+                        opacity={isRouteSelected ? 0.95 : 0.75}
+                      />
+                    );
+                  })}
                 </g>
               );
             })}
 
-            {/* Central Depot Landmark (Solomon or Hub) */}
-            {isCartesian && (
-              <g transform="translate(37.5, 47.5)">
-                <rect
-                  width="5"
-                  height="5"
-                  rx="1"
-                  fill="#17231F"
-                  stroke="#FFFFFF"
-                  strokeWidth="0.8"
-                />
-                {/* Depot Warehouse icon */}
-                <path
-                  d="M 1 2.5 L 2.5 1 L 4 2.5 L 4 4 L 1 4 Z"
-                  fill="#A8DBC9"
-                />
-                <text
-                  x="2.5"
-                  y="3.2"
-                  fontSize="1.4"
-                  fill="#17231F"
-                  fontWeight="bold"
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                >
-                  D
-                </text>
-              </g>
-            )}
+            {/* Central Depot Landmark (Rendered for both Cartesian Solomon and Geographic Hub) */}
+            {(() => {
+              const [depotPx, depotPy] = isCartesian
+                ? projectCoord(40, 50)
+                : projectCoord(77.6300, 12.9800);
+              return (
+                <g transform={`translate(${depotPx - 2.8}, ${depotPy - 2.8})`}>
+                  <rect
+                    width="5.6"
+                    height="5.6"
+                    rx="1.2"
+                    fill="#17231F"
+                    stroke="#FFFFFF"
+                    strokeWidth="0.8"
+                  />
+                  {/* Depot Warehouse icon */}
+                  <path
+                    d="M 1.2 2.8 L 2.8 1.2 L 4.4 2.8 L 4.4 4.5 L 1.2 4.5 Z"
+                    fill="#A8DBC9"
+                  />
+                  <text
+                    x="2.8"
+                    y="3.4"
+                    fontSize="1.6"
+                    fill="#17231F"
+                    fontWeight="800"
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fontFamily="inherit"
+                  >
+                    D
+                  </text>
+                  <text
+                    x="2.8"
+                    y="7.4"
+                    fontSize="1.4"
+                    fill="#17231F"
+                    fontWeight="700"
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fontFamily="inherit"
+                  >
+                    Central Hub
+                  </text>
+                </g>
+              );
+            })()}
 
             {/* Numbered Stops (Precision Centered Typography) */}
             {plan.routes.flatMap((r) =>

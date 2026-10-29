@@ -86,12 +86,12 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
   });
 
   const handleSimulatedDriverCall = (driverName: string, phone: string) => {
-    setDriverActionToast(`Dialing ${driverName} (${phone}) on encrypted dispatch VoIP…`);
+    setDriverActionToast(`Direct dispatch audio link connected: ${driverName} (${phone}).`);
     setTimeout(() => setDriverActionToast(null), 3000);
   };
 
   const handleSimulatedDriverMessage = (driverName: string) => {
-    setDriverActionToast(`Route manifest update sent to ${driverName}'s mobile HUD terminal.`);
+    setDriverActionToast(`Manifest sequence update pushed to ${driverName}'s terminal.`);
     setTimeout(() => setDriverActionToast(null), 3000);
   };
 

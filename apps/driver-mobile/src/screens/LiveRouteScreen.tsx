@@ -75,7 +75,7 @@ export const LiveRouteScreen: React.FC<LiveRouteScreenProps> = ({
 
           {/* Traffic Congestion Alert Tag */}
           <View style={styles.trafficAlertTag}>
-            <Text style={styles.trafficAlertText}>⚠️ +12 min Delay on Hosur Main Rd</Text>
+            <Text style={styles.trafficAlertText}>Advisory: +12 min Corridor Delay (Hosur Main Rd)</Text>
           </View>
         </View>
       </View>

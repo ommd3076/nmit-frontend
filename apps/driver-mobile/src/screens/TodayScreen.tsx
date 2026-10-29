@@ -42,7 +42,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({ onNavigateToLiveRoute 
         <View style={styles.header}>
           <View>
             <Text style={styles.eyebrow}>01 · DISPATCH MANIFEST</Text>
-            <Text style={styles.greeting}>Namaste, {DRIVER_PROFILE.name.split(' ')[0]}</Text>
+            <Text style={styles.greeting}>Shift R-04 · {DRIVER_PROFILE.name}</Text>
           </View>
           <DataBadge label="Preview" tone="preview" />
         </View>
@@ -92,15 +92,15 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({ onNavigateToLiveRoute 
 
           {/* Vehicle Telemetry Strip */}
           <View style={styles.vehicleStrip}>
-            <Text style={styles.vehicleInfoText}>🚚 {DRIVER_PROFILE.vehicleCallsign} · {DRIVER_PROFILE.vehicleModel}</Text>
-            <Text style={styles.batteryText}>🔋 {DRIVER_PROFILE.batteryPct}% SoC</Text>
+            <Text style={styles.vehicleInfoText}>Unit {DRIVER_PROFILE.vehicleCallsign} · {DRIVER_PROFILE.vehicleModel}</Text>
+            <Text style={styles.batteryText}>{DRIVER_PROFILE.batteryPct}% SoC</Text>
           </View>
         </View>
 
         {/* Ordered Stops Section Header */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Assigned Stops ({stops.length})</Text>
-          <Text style={styles.sectionSub}>Tap for live turn-by-turn navigation</Text>
+          <Text style={styles.sectionSub}>Select stop to preview corridor navigation</Text>
         </View>
 
         {/* Vertical Stop Itinerary Cards (Vanta Ride & Fieldnotes Style) */}
@@ -114,7 +114,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({ onNavigateToLiveRoute 
                 <View style={styles.stopHeader}>
                   <View style={styles.stopSequenceRow}>
                     <View style={[styles.stopBadge, isCompleted && styles.stopBadgeDone, isAtRisk && styles.stopBadgeRisk]}>
-                      <Text style={styles.stopBadgeText}>{stop.isLocked ? '🔒' : stop.sequence}</Text>
+                      <Text style={styles.stopBadgeText}>{stop.isLocked ? 'L' : stop.sequence}</Text>
                     </View>
                     <View style={styles.stopTitleWrap}>
                       <Text style={[styles.stopCustomerName, isCompleted && styles.textMuted]}>
@@ -133,15 +133,15 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({ onNavigateToLiveRoute 
 
                 {/* Timing & Demand */}
                 <View style={styles.stopDetailsRow}>
-                  <Text style={styles.stopDetailItem}>⏰ {stop.windowStart} – {stop.windowEnd}</Text>
-                  <Text style={styles.stopDetailItem}>📦 {stop.demandKg} kg</Text>
+                  <Text style={styles.stopDetailItem}>Window: {stop.windowStart} – {stop.windowEnd}</Text>
+                  <Text style={styles.stopDetailItem}>Demand: {stop.demandKg} kg</Text>
                   <Text style={styles.stopDetailItem}>ETA: {stop.eta}</Text>
                 </View>
 
                 {/* Delay Warning Note if at-risk */}
                 {stop.notes && (
                   <View style={styles.warningNote}>
-                    <Text style={styles.warningNoteText}>⚠️ {stop.notes}</Text>
+                    <Text style={styles.warningNoteText}>Advisory: {stop.notes}</Text>
                   </View>
                 )}
 
