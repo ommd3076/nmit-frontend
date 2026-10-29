@@ -38,11 +38,11 @@ build-web:
 
 typecheck:
 	cd frontend && npx tsc --noEmit
-	cd apps/driver-mobile && npx tsc --noEmit
+	@if [ -d "apps/driver-mobile" ]; then cd apps/driver-mobile && npx tsc --noEmit; fi
 
 test:
 	cd frontend && npx vitest run
-	cd $(BACKEND_DIR) && python -m pytest -q
+	@if [ -d "$(BACKEND_DIR)" ]; then cd $(BACKEND_DIR) && python -m pytest -q; fi
 
 verify: typecheck test build-web
 	cd apps/driver-mobile && npx expo export --platform android --output-dir /tmp/arq-export

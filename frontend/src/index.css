@@ -1,0 +1,132 @@
+@import "tailwindcss";
+@import "maplibre-gl/dist/maplibre-gl.css";
+@import "@fontsource-variable/inter";
+
+:root {
+  --arq-canvas: #F6F8F5;
+  --arq-canvas-subtle: #EEF2ED;
+  --arq-glass: rgba(255, 255, 255, 0.75);
+  --arq-glass-strong: rgba(255, 255, 255, 0.92);
+  --arq-glass-border: rgba(255, 255, 255, 0.85);
+  --arq-glass-border-outer: rgba(21, 33, 29, 0.08);
+
+  --arq-ink-primary: #15211D;
+  --arq-ink-secondary: #68756F;
+  --arq-ink-tertiary: #929E99;
+
+  --arq-graphite: #17231F;
+  --arq-forest: #205A46;
+  --arq-forest-light: #2A6E56;
+  --arq-mint: #A8DBC9;
+  --arq-mint-subtle: #E2F4EE;
+  --arq-sage: #D9E6DC;
+  --arq-sage-subtle: #F0F5F1;
+  --arq-amber: #D78A45;
+  --arq-amber-subtle: #FDF4EB;
+  --arq-red: #C6534C;
+  --arq-red-subtle: #FBECEB;
+
+  --route-1: #2F5BEA;
+  --route-2: #0F8B8D;
+  --route-3: #D78A45;
+  --route-4: #8E3BD1;
+  --route-5: #C6534C;
+  --route-6: #205A46;
+
+  font-family: 'Inter Variable', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+  color: var(--arq-ink-primary);
+  background-color: var(--arq-canvas);
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--arq-canvas);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Glass Material Design */
+.glass-panel {
+  background: var(--arq-glass);
+  border: 1px solid var(--arq-glass-border-outer);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.05);
+}
+
+.glass-panel-strong {
+  background: var(--arq-glass-strong);
+  border: 1px solid var(--arq-glass-border-outer);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  box-shadow: 0 2px 6px rgba(16, 24, 40, 0.04), 0 12px 32px rgba(16, 24, 40, 0.08);
+}
+
+.glass-pill {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(21, 33, 29, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+}
+
+/* Tabular Numerals for Logistics Precision */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Accessibility & Fallbacks */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-panel,
+  .glass-panel-strong,
+  .glass-pill {
+    background: #FFFFFF !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass-panel,
+  .glass-panel-strong,
+  .glass-pill {
+    background: #FFFFFF !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Custom Scrollbar for high-density tables */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(21, 33, 29, 0.15);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(21, 33, 29, 0.25);
+}
+
+/* Map canvas full wrapper */
+.maplibregl-map {
+  font-family: inherit;
+}
