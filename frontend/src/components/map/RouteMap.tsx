@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import { PlanRun } from '../../types/api';
-import { Maximize2, AlertCircle, Compass, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { AlertCircle, Compass, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 
 interface RouteMapProps {
   plan: PlanRun;
@@ -35,9 +35,22 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     }
   });
 
+  // Callbacks and plan in refs to prevent map unmounting on parent state update
+  const onSelectVehicleRef = useRef(onSelectVehicle);
+  const onSelectStopRef = useRef(onSelectStop);
+  const planRef = useRef(plan);
+
+  useEffect(() => {
+    onSelectVehicleRef.current = onSelectVehicle;
+    onSelectStopRef.current = onSelectStop;
+    planRef.current = plan;
+  }, [onSelectVehicle, onSelectStop, plan]);
+
   // SVG Pan & Zoom state for Euclidean & SVG basemaps
   const [svgZoom, setSvgZoom] = useState<number>(1);
   const [svgPan, setSvgPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // -------------------------------------------------------------
   // MAPLIBRE GL JS INITIALIZATION (For Real-World Lat/Lon)
@@ -50,8 +63,14 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     markersRef.current = [];
 
     // Base center for Bengaluru
+    const currentPlan = planRef.current;
     const centerLng = 77.6300;
     const centerLat = 12.9800;
+
+    const minLng = currentPlan.bounds ? currentPlan.bounds[0][0] : 77.52;
+    const minLat = currentPlan.bounds ? currentPlan.bounds[0][1] : 12.91;
+    const maxLng = currentPlan.bounds ? currentPlan.bounds[1][0] : 77.72;
+    const maxLat = currentPlan.bounds ? currentPlan.bounds[1][1] : 13.06;
 
     const baseStyle: maplibregl.StyleSpecification = {
       version: 8,
@@ -94,8 +113,19 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         style: baseStyle,
         center: [centerLng, centerLat],
         zoom: 11.5,
+        minZoom: 9.0, // Prevents zooming out to outer space / world view
+        maxZoom: 18.0,
+        renderWorldCopies: false, // Prevents duplicated world wraps on zoom out
+        maxBounds: [
+          [minLng - 0.35, minLat - 0.35],
+          [maxLng + 0.35, maxLat + 0.35]
+        ],
         attributionControl: false
       });
+      // Attach to window for testing/debugging
+      if (typeof window !== 'undefined') {
+        (window as any)._mapInstance = map;
+      }
     } catch {
       queueMicrotask(() => {
         setWebglFailed(true);
@@ -104,18 +134,27 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       return;
     }
 
+    // Add controls
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'bottom-right');
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
 
+    let consecutiveTileErrors = 0;
     map.on('error', (e: any) => {
+      // Aborted tiles during fast zoom-out or pan are normal network cancellations, not fatal
+      if (e.error?.message?.includes('aborted') || e.error?.name === 'AbortError') {
+        return;
+      }
       if (e.error?.message?.includes('tile') || (e as any).status === 404 || e.error?.message?.includes('Failed to fetch')) {
-        setTileError(true);
+        consecutiveTileErrors += 1;
+        if (consecutiveTileErrors >= 4) {
+          setTileError(true);
+        }
       }
     });
 
     map.on('load', () => {
       // 1. Add route polyline sources and layers
-      plan.routes.forEach((route) => {
+      currentPlan.routes.forEach((route) => {
         const sourceId = `route-source-${route.id}`;
         map.addSource(sourceId, {
           type: 'geojson',
@@ -166,15 +205,15 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       });
 
       // 2. Add Stop Markers to MapLibre (Strictly vector SVG, no emojis)
-      plan.routes.forEach((route) => {
+      currentPlan.routes.forEach((route) => {
         route.stops.forEach((stop) => {
           if (stop.lat === undefined || stop.lng === undefined) return;
 
           const isAtRisk = stop.status === 'at_risk' || (stop.predicted_late_prob_max || 0) > 0.4;
-          const isStopSelected = selectedStopId === stop.id;
 
           const el = document.createElement('div');
           el.className = 'arq-stop-marker cursor-pointer transition-transform hover:scale-115 select-none';
+          el.dataset.stopId = stop.id;
           el.title = `${stop.customer_name} (${stop.window_start} - ${stop.window_end})`;
 
           let bgColor = route.color_token || '#2F5BEA';
@@ -184,7 +223,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           const lockSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`;
 
           el.innerHTML = `
-            <div style="
+            <div class="arq-stop-badge" style="
               position: relative;
               width: 22px;
               height: 22px;
@@ -200,8 +239,6 @@ export const RouteMap: React.FC<RouteMapProps> = ({
               font-variant-numeric: tabular-nums;
               border: 2px solid #FFFFFF;
               box-shadow: 0 1px 4px rgba(16, 24, 40, 0.25);
-              ${isStopSelected ? 'outline: 3px solid #17231F; outline-offset: 2px;' : ''}
-              ${isAtRisk ? 'box-shadow: 0 0 0 3px rgba(198, 83, 76, 0.4);' : ''}
             ">
               ${stop.is_locked ? lockSvg : stop.sequence_idx}
             </div>
@@ -209,8 +246,8 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 
           el.addEventListener('click', (e) => {
             e.stopPropagation();
-            onSelectStop(stop.id);
-            onSelectVehicle(stop.vehicle_id);
+            onSelectStopRef.current(stop.id);
+            onSelectVehicleRef.current(stop.vehicle_id);
           });
 
           const marker = new maplibregl.Marker({ element: el })
@@ -222,18 +259,18 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       });
 
       // 3. Add Vehicle Position Markers to MapLibre (Vector truck glyph, no emojis)
-      plan.vehicles.forEach((veh) => {
+      currentPlan.vehicles.forEach((veh) => {
         if (veh.current_lat === undefined || veh.current_lng === undefined) return;
 
-        const isVehSelected = selectedVehicleId === veh.id;
         const vEl = document.createElement('div');
         vEl.className = 'arq-vehicle-marker cursor-pointer transition-transform hover:scale-110 select-none';
+        vEl.dataset.vehicleId = veh.id;
         vEl.title = `${veh.callsign} (${veh.driver_name}) - ${veh.battery_or_fuel_pct}% Batt`;
 
         const truckSvg = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#A8DBC9" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>`;
 
         vEl.innerHTML = `
-          <div style="
+          <div class="arq-veh-badge" style="
             background: #17231F;
             color: #FFFFFF;
             padding: 2px 7px;
@@ -247,7 +284,6 @@ export const RouteMap: React.FC<RouteMapProps> = ({
             gap: 4px;
             border: 2px solid #FFFFFF;
             box-shadow: 0 2px 8px rgba(16, 24, 40, 0.35);
-            ${isVehSelected ? 'outline: 3px solid #205A46; outline-offset: 1px;' : ''}
           ">
             ${truckSvg}
             <span>${veh.callsign.split('-').slice(0, 2).join('-')}</span>
@@ -256,7 +292,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 
         vEl.addEventListener('click', (e) => {
           e.stopPropagation();
-          onSelectVehicle(veh.id);
+          onSelectVehicleRef.current(veh.id);
         });
 
         const vMarker = new maplibregl.Marker({ element: vEl })
@@ -295,8 +331,8 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       markersRef.current.push(depotMarker);
 
       // Fit bounds if available
-      if (plan.bounds) {
-        map.fitBounds(plan.bounds, {
+      if (currentPlan.bounds) {
+        map.fitBounds(currentPlan.bounds, {
           padding: { top: 60, bottom: 60, left: 60, right: 60 },
           maxZoom: 13,
           duration: 1000
@@ -311,10 +347,13 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       markersRef.current = [];
       map.remove();
       mapInstanceRef.current = null;
+      if (typeof window !== 'undefined') {
+        delete (window as any)._mapInstance;
+      }
     };
-  }, [isCartesian, webglFailed, plan, onSelectStop, onSelectVehicle, selectedStopId, selectedVehicleId]);
+  }, [isCartesian, webglFailed, plan.id]);
 
-  // Update selection focus and dynamic route emphasis on MapLibre
+  // Update selection focus and dynamic route emphasis on MapLibre without destroying the map
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || isCartesian || webglFailed) return;
@@ -333,6 +372,34 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         }
       }
     });
+
+    // Update marker outline states via DOM without recreating markers
+    const container = mapContainerRef.current;
+    if (container) {
+      container.querySelectorAll<HTMLElement>('.arq-stop-marker').forEach((el) => {
+        const badge = el.querySelector<HTMLElement>('.arq-stop-badge');
+        if (badge) {
+          if (el.dataset.stopId === selectedStopId) {
+            badge.style.outline = '3px solid #17231F';
+            badge.style.outlineOffset = '2px';
+          } else {
+            badge.style.outline = 'none';
+          }
+        }
+      });
+
+      container.querySelectorAll<HTMLElement>('.arq-vehicle-marker').forEach((el) => {
+        const badge = el.querySelector<HTMLElement>('.arq-veh-badge');
+        if (badge) {
+          if (el.dataset.vehicleId === selectedVehicleId) {
+            badge.style.outline = '3px solid #205A46';
+            badge.style.outlineOffset = '1px';
+          } else {
+            badge.style.outline = 'none';
+          }
+        }
+      });
+    }
 
     // Pan camera to selected vehicle or stop
     if (selectedVehicleId) {
@@ -357,19 +424,36 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         }
       }
     }
-  }, [selectedVehicleId, selectedStopId, isCartesian, webglFailed, plan]);
+  }, [selectedVehicleId, selectedStopId, isCartesian, webglFailed, plan.routes, plan.vehicles]);
 
-  // Reset to full scenario bounds
-  const handleResetBounds = () => {
-    if (mapInstanceRef.current && plan.bounds) {
+  // Unified Zoom and Reset Handlers
+  const handleZoomIn = useCallback(() => {
+    if (mapInstanceRef.current && !isCartesian && !webglFailed) {
+      mapInstanceRef.current.zoomIn({ duration: 300 });
+    } else {
+      setSvgZoom((prev) => Math.min(prev + 0.25, 2.5));
+    }
+  }, [isCartesian, webglFailed]);
+
+  const handleZoomOut = useCallback(() => {
+    if (mapInstanceRef.current && !isCartesian && !webglFailed) {
+      mapInstanceRef.current.zoomOut({ duration: 300 });
+    } else {
+      setSvgZoom((prev) => Math.max(prev - 0.25, 0.6));
+    }
+  }, [isCartesian, webglFailed]);
+
+  const handleResetBounds = useCallback(() => {
+    if (mapInstanceRef.current && plan.bounds && !isCartesian && !webglFailed) {
       mapInstanceRef.current.fitBounds(plan.bounds, {
-        padding: 50,
+        padding: { top: 60, bottom: 60, left: 60, right: 60 },
+        maxZoom: 13,
         duration: 800
       });
     }
     setSvgZoom(1);
     setSvgPan({ x: 0, y: 0 });
-  };
+  }, [isCartesian, webglFailed, plan.bounds]);
 
   // -------------------------------------------------------------
   // RENDERER B: HIGH-FIDELITY ARCHITECTURAL SVG CANVAS
@@ -404,19 +488,19 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           </div>
         </div>
 
-        {/* Floating Zoom & Reset Toolbar */}
+        {/* Floating Zoom & Reset Toolbar (Polished Glass Surface) */}
         <div className="absolute top-4 right-4 z-10 flex items-center space-x-1.5 glass-panel p-1 rounded-2xl shadow-md border border-white/80">
           <button
-            onClick={() => setSvgZoom(prev => Math.min(prev + 0.25, 2.5))}
-            className="p-1.5 rounded-xl hover:bg-white text-[#15211D] transition-colors"
+            onClick={handleZoomIn}
+            className="p-1.5 rounded-xl hover:bg-white text-[#15211D] transition-colors cursor-pointer interactive-tap"
             title="Zoom In"
             aria-label="Zoom In"
           >
             <ZoomIn className="w-3.5 h-3.5" />
           </button>
           <button
-            onClick={() => setSvgZoom(prev => Math.max(prev - 0.25, 0.75))}
-            className="p-1.5 rounded-xl hover:bg-white text-[#15211D] transition-colors"
+            onClick={handleZoomOut}
+            className="p-1.5 rounded-xl hover:bg-white text-[#15211D] transition-colors cursor-pointer interactive-tap"
             title="Zoom Out"
             aria-label="Zoom Out"
           >
@@ -424,7 +508,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           </button>
           <button
             onClick={handleResetBounds}
-            className="p-1.5 rounded-xl hover:bg-white text-[#15211D] transition-colors"
+            className="p-1.5 rounded-xl hover:bg-white text-[#15211D] transition-colors cursor-pointer interactive-tap"
             title="Reset View Bounds"
             aria-label="Reset View Bounds"
           >
@@ -432,14 +516,40 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           </button>
         </div>
 
-        {/* Central Map Canvas */}
-        <div className="flex-1 w-full h-full p-4 flex items-center justify-center overflow-hidden">
+        {/* Central Map Canvas with fluid drag-pan and centered zoom */}
+        <div
+          className="flex-1 w-full h-full p-4 flex items-center justify-center overflow-hidden"
+          onWheel={(e) => {
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.12 : 0.88;
+            setSvgZoom(prev => Math.min(Math.max(prev * factor, 0.6), 2.8));
+          }}
+          onMouseDown={(e) => {
+            if (e.button === 0) {
+              setIsPanning(true);
+              panStartRef.current = { x: e.clientX - svgPan.x, y: e.clientY - svgPan.y };
+            }
+          }}
+          onMouseMove={(e) => {
+            if (isPanning) {
+              setSvgPan({
+                x: e.clientX - panStartRef.current.x,
+                y: e.clientY - panStartRef.current.y
+              });
+            }
+          }}
+          onMouseUp={() => setIsPanning(false)}
+          onMouseLeave={() => setIsPanning(false)}
+        >
           <svg
             viewBox="0 0 100 100"
-            className="w-full h-full max-h-[720px] select-none transition-transform duration-300 ease-out"
+            className="w-full h-full max-h-[720px] select-none transition-transform duration-150 ease-out"
             style={{
               shapeRendering: 'geometricPrecision',
-              transform: `scale(${svgZoom}) translate(${svgPan.x}px, ${svgPan.y}px)`
+              transformOrigin: '50% 50%',
+              transformBox: 'view-box',
+              transform: `translate(${svgPan.x}px, ${svgPan.y}px) scale(${svgZoom})`,
+              cursor: isPanning ? 'grabbing' : 'grab'
             }}
           >
             {/* Background Grid */}
@@ -468,10 +578,8 @@ export const RouteMap: React.FC<RouteMapProps> = ({
             {plan.routes.map((route) => {
               const isRouteSelected = selectedVehicleId === route.vehicle_id;
               const points = route.geometry_coordinates
-                .map(([ptX, ptY]) => {
-                  const [px, py] = projectCoord(ptX, ptY);
-                  return `${px.toFixed(1)},${py.toFixed(1)}`;
-                })
+                .map(coord => projectCoord(coord[0], coord[1]))
+                .map(p => `${p[0]},${p[1]}`)
                 .join(' ');
 
               return (
@@ -481,12 +589,12 @@ export const RouteMap: React.FC<RouteMapProps> = ({
                     points={points}
                     fill="none"
                     stroke="#FFFFFF"
-                    strokeWidth={isRouteSelected ? 3.8 : 2.6}
+                    strokeWidth={isRouteSelected ? 3.5 : 2.2}
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    opacity={0.85}
+                    opacity={0.8}
                   />
-                  {/* Colored corridor */}
+                  {/* Core polyline */}
                   <polyline
                     points={points}
                     fill="none"
@@ -494,63 +602,37 @@ export const RouteMap: React.FC<RouteMapProps> = ({
                     strokeWidth={isRouteSelected ? 2.4 : 1.4}
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeDasharray={isRouteSelected ? 'none' : '2, 1'}
-                    opacity={isRouteSelected || !selectedVehicleId ? 0.95 : 0.28}
+                    opacity={selectedVehicleId ? (isRouteSelected ? 1 : 0.25) : 0.9}
                   />
-
-                  {/* Direction Heading Chevrons along route (Reference 6) */}
-                  {route.geometry_coordinates.slice(0, -1).map(([x1, y1], segIdx) => {
-                    const [x2, y2] = route.geometry_coordinates[segIdx + 1];
-                    const [px1, py1] = projectCoord(x1, y1);
-                    const [px2, py2] = projectCoord(x2, y2);
-                    const midX = (px1 + px2) / 2;
-                    const midY = (py1 + py2) / 2;
-                    const dx = px2 - px1;
-                    const dy = py2 - py1;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < 4) return null;
-                    const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
-
-                    return (
-                      <polygon
-                        key={`chev-${route.id}-${segIdx}`}
-                        points="-0.6,-0.7 0.9,0 -0.6,0.7"
-                        fill={isRouteSelected ? '#FFFFFF' : (route.color_token || '#2F5BEA')}
-                        transform={`translate(${midX.toFixed(2)}, ${midY.toFixed(2)}) rotate(${angle.toFixed(1)})`}
-                        opacity={isRouteSelected ? 0.95 : 0.75}
-                      />
-                    );
-                  })}
                 </g>
               );
             })}
 
-            {/* Central Depot Landmark (Rendered for both Cartesian Solomon and Geographic Hub) */}
+            {/* Central Depot Hub (Solomon Depot: 40, 50 or BLR center) */}
             {(() => {
-              const [depotPx, depotPy] = isCartesian
-                ? projectCoord(40, 50)
-                : projectCoord(77.6300, 12.9800);
+              const depotX = isCartesian ? 40 : 77.63;
+              const depotY = isCartesian ? 50 : 12.98;
+              const [dPosX, dPosY] = projectCoord(depotX, depotY);
+
               return (
-                <g transform={`translate(${depotPx - 2.8}, ${depotPy - 2.8})`}>
+                <g key="svg-depot" transform={`translate(${dPosX}, ${dPosY})`} className="select-none">
+                  {/* Outer pulse boundary */}
                   <rect
+                    x="-2.8"
+                    y="-2.8"
                     width="5.6"
                     height="5.6"
-                    rx="1.2"
+                    rx="1.4"
                     fill="#17231F"
                     stroke="#FFFFFF"
                     strokeWidth="0.8"
                   />
-                  {/* Depot Warehouse icon */}
-                  <path
-                    d="M 1.2 2.8 L 2.8 1.2 L 4.4 2.8 L 4.4 4.5 L 1.2 4.5 Z"
-                    fill="#A8DBC9"
-                  />
                   <text
-                    x="2.8"
-                    y="3.4"
-                    fontSize="1.6"
-                    fill="#17231F"
+                    x="0"
+                    y="0.3"
+                    fontSize="2.4"
                     fontWeight="800"
+                    fill="#A8DBC9"
                     textAnchor="middle"
                     dominantBaseline="central"
                     fontFamily="inherit"
@@ -558,31 +640,35 @@ export const RouteMap: React.FC<RouteMapProps> = ({
                     D
                   </text>
                   <text
-                    x="2.8"
-                    y="7.4"
-                    fontSize="1.4"
-                    fill="#17231F"
+                    x="0"
+                    y="4.5"
+                    fontSize="1.6"
                     fontWeight="700"
+                    fill="#17231F"
                     textAnchor="middle"
-                    dominantBaseline="central"
+                    dominantBaseline="auto"
                     fontFamily="inherit"
                   >
-                    Central Hub
+                    DEPOT
                   </text>
                 </g>
               );
             })()}
 
-            {/* Numbered Stops (Precision Centered Typography) */}
-            {plan.routes.flatMap((r) =>
-              r.stops.map((s) => {
+            {/* Stop Markers */}
+            {plan.routes.map((route) =>
+              route.stops.map((s) => {
                 const sCoordX = isCartesian ? s.x : s.lng;
                 const sCoordY = isCartesian ? s.y : s.lat;
                 if (sCoordX === undefined || sCoordY === undefined) return null;
 
                 const [posX, posY] = projectCoord(sCoordX, sCoordY);
-                const isStopSelected = selectedStopId === s.id;
+                const isSelected = selectedStopId === s.id;
                 const isAtRisk = s.status === 'at_risk' || (s.predicted_late_prob_max || 0) > 0.4;
+
+                let fillColor = route.color_token || '#2F5BEA';
+                if (s.is_completed) fillColor = '#205A46';
+                else if (isAtRisk) fillColor = '#C6534C';
 
                 return (
                   <g
@@ -593,7 +679,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
                       onSelectVehicle(s.vehicle_id);
                     }}
                   >
-                    {/* Risk Halo Ring */}
+                    {/* At risk animated halo ring */}
                     {isAtRisk && (
                       <circle
                         cx={posX}
@@ -601,13 +687,13 @@ export const RouteMap: React.FC<RouteMapProps> = ({
                         r="3.2"
                         fill="none"
                         stroke="#C6534C"
-                        strokeWidth="0.5"
-                        strokeDasharray="1, 0.8"
+                        strokeWidth="0.6"
+                        strokeDasharray="1.5 1"
+                        opacity="0.8"
                       />
                     )}
-
-                    {/* Outer selection ring */}
-                    {isStopSelected && (
+                    {/* Selected stop halo */}
+                    {isSelected && (
                       <circle
                         cx={posX}
                         cy={posY}
@@ -617,23 +703,19 @@ export const RouteMap: React.FC<RouteMapProps> = ({
                         strokeWidth="0.8"
                       />
                     )}
-
-                    {/* Stop Circle */}
+                    {/* Marker circle */}
                     <circle
                       cx={posX}
                       cy={posY}
-                      r="2"
-                      fill={s.is_completed ? '#205A46' : isAtRisk ? '#C6534C' : r.color_token}
+                      r="2.2"
+                      fill={fillColor}
                       stroke="#FFFFFF"
                       strokeWidth="0.6"
                     />
-
-                    {/* Sequence Index Number - Mathematically centered */}
+                    {/* Sequence Number or Lock Glyph */}
                     {s.is_locked ? (
-                      /* Lock Icon Path */
                       <path
-                        d="M -0.6 -0.1 L 0.6 -0.1 L 0.6 0.8 L -0.6 0.8 Z M -0.4 -0.1 L -0.4 -0.5 C -0.4 -0.8 0.4 -0.8 0.4 -0.5 L 0.4 -0.1"
-                        transform={`translate(${posX}, ${posY})`}
+                        d={`M ${posX - 0.7} ${posY + 0.5} h 1.4 v 0.9 h -1.4 z M ${posX - 0.5} ${posY + 0.5} v -0.6 a 0.5 0.5 0 0 1 1 0 v 0.6`}
                         fill="none"
                         stroke="#FFFFFF"
                         strokeWidth="0.3"
@@ -659,7 +741,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
               })
             )}
 
-            {/* Vehicle Current Position Markers (Sleek Tactical Vehicle Glyph) */}
+            {/* Vehicle Current Position Markers */}
             {plan.vehicles.map((v) => {
               const vCoordX = isCartesian ? v.current_x : v.current_lng;
               const vCoordY = isCartesian ? v.current_y : v.current_lat;
@@ -674,7 +756,6 @@ export const RouteMap: React.FC<RouteMapProps> = ({
                   className="cursor-pointer"
                   onClick={() => onSelectVehicle(v.id)}
                 >
-                  {/* Vehicle Marker Pin */}
                   <circle
                     cx={posX}
                     cy={posY}
@@ -683,14 +764,12 @@ export const RouteMap: React.FC<RouteMapProps> = ({
                     stroke="#FFFFFF"
                     strokeWidth="0.7"
                   />
-                  {/* Subtle heading pip */}
                   <circle
                     cx={posX}
                     cy={posY}
                     r="1"
                     fill="#A8DBC9"
                   />
-                  {/* Vehicle Callout Badge */}
                   <g transform={`translate(${posX}, ${posY - 3.4})`}>
                     <rect
                       x="-3.5"
@@ -775,15 +854,33 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         </div>
       )}
 
-      {/* Floating Control: Reset Camera Bounds */}
-      <button
-        onClick={handleResetBounds}
-        className="absolute top-4 right-4 z-10 glass-pill p-2 rounded-xl text-[#15211D] hover:bg-white transition-all shadow-md cursor-pointer interactive-tap"
-        title="Fit Map to All Routes"
-        aria-label="Fit Map to All Routes"
-      >
-        <Maximize2 className="w-4 h-4" />
-      </button>
+      {/* Unified Floating Zoom & Reset Toolbar (Top Right) */}
+      <div className="absolute top-4 right-4 z-10 flex items-center space-x-1.5 glass-panel p-1 rounded-2xl shadow-md border border-white/80">
+        <button
+          onClick={handleZoomIn}
+          className="p-1.5 rounded-xl hover:bg-white text-[#15211D] transition-colors cursor-pointer interactive-tap"
+          title="Zoom In"
+          aria-label="Zoom In"
+        >
+          <ZoomIn className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={handleZoomOut}
+          className="p-1.5 rounded-xl hover:bg-white text-[#15211D] transition-colors cursor-pointer interactive-tap"
+          title="Zoom Out"
+          aria-label="Zoom Out"
+        >
+          <ZoomOut className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={handleResetBounds}
+          className="p-1.5 rounded-xl hover:bg-white text-[#15211D] transition-colors cursor-pointer interactive-tap"
+          title="Fit Map to All Routes"
+          aria-label="Fit Map to All Routes"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+        </button>
+      </div>
 
       {/* Floating Route Legend & Vehicle Selector */}
       <div className="absolute bottom-4 left-4 z-10 glass-panel p-3 rounded-2xl max-w-sm border border-white/60 text-xs shadow-lg space-y-2">
