@@ -3,27 +3,24 @@ import { PlanRun } from '../../types/api';
 import { apiClient } from '../../api/client';
 import { DataBadge } from '../../components/ui/DataBadge';
 import {
-  Route as RouteIcon,
   Play,
-  CheckCircle2,
-  AlertCircle,
   Sliders,
-  Sparkles,
   ShieldCheck,
   Send,
-  Clock,
-  Layers
+  Eye
 } from 'lucide-react';
 
 interface DispatchPlanningViewProps {
   plan: PlanRun;
   onPlanUpdate?: (plan: PlanRun) => void;
+  onSelectRoute?: (vehicleId: string) => void;
   onJobTriggered?: () => void;
 }
 
 export const DispatchPlanningView: React.FC<DispatchPlanningViewProps> = ({
   plan,
   onPlanUpdate,
+  onSelectRoute,
   onJobTriggered
 }) => {
   const [selectedEngine, setSelectedEngine] = useState<string>('qpiai_opt');
@@ -31,8 +28,9 @@ export const DispatchPlanningView: React.FC<DispatchPlanningViewProps> = ({
   const [mileageWeight, setMileageWeight] = useState<number>(0.8);
   const [isSolving, setIsSolving] = useState<boolean>(false);
   const [solveMessage, setSolveMessage] = useState<string | null>(null);
-  const [isDraft, setIsDraft] = useState<boolean>(plan.status === 'draft');
-  const [isPublished, setIsPublished] = useState<boolean>(plan.status === 'active');
+  const [publishedPlanIds, setPublishedPlanIds] = useState<Set<string>>(new Set());
+
+  const isPublished = plan.status === 'active' || publishedPlanIds.has(plan.id);
 
   const handleRunSolve = async () => {
     setIsSolving(true);
@@ -63,8 +61,7 @@ export const DispatchPlanningView: React.FC<DispatchPlanningViewProps> = ({
   };
 
   const handlePublishPlan = () => {
-    setIsPublished(true);
-    setIsDraft(false);
+    setPublishedPlanIds((prev) => new Set(prev).add(plan.id));
     if (onPlanUpdate) {
       onPlanUpdate({
         ...plan,
@@ -241,13 +238,25 @@ export const DispatchPlanningView: React.FC<DispatchPlanningViewProps> = ({
                       </span>
                     </div>
 
-                    <div className="text-right tabular-nums">
-                      <span className="font-bold text-[#15211D]">
-                        {route.total_distance_km} km
-                      </span>
-                      <span className="text-[#68756F] ml-1.5">
-                        · {route.total_duration_minutes} min
-                      </span>
+                    <div className="flex items-center space-x-3">
+                      <div className="text-right tabular-nums">
+                        <span className="font-bold text-[#15211D]">
+                          {route.total_distance_km} km
+                        </span>
+                        <span className="text-[#68756F] ml-1.5">
+                          · {route.total_duration_minutes} min
+                        </span>
+                      </div>
+
+                      {onSelectRoute && (
+                        <button
+                          onClick={() => onSelectRoute(route.vehicle_id)}
+                          className="px-2.5 py-1 bg-black/5 hover:bg-[#17231F] hover:text-white rounded-xl font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>View on Map</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 

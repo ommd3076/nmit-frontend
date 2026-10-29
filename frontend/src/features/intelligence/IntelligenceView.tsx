@@ -3,11 +3,8 @@ import { IntelligenceEvidence } from '../../types/api';
 import { DataBadge } from '../../components/ui/DataBadge';
 import {
   BrainCircuit,
-  Cpu,
   BarChart3,
   CheckCircle2,
-  AlertCircle,
-  FileText,
   Binary
 } from 'lucide-react';
 

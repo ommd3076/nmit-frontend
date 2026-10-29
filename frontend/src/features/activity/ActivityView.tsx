@@ -5,12 +5,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   Info,
-  Clock,
-  Filter,
   RefreshCw,
   Search,
-  User,
-  ShieldAlert
+  User
 } from 'lucide-react';
 
 interface ActivityViewProps {

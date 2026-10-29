@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { PlanRun, SolverJob, SystemHealth, OperationalEvent } from './types/api';
+import { useState, useEffect } from 'react';
+import { PlanRun, SolverJob, SystemHealth, OperationalEvent, IntelligenceEvidence } from './types/api';
 import { apiClient } from './api/client';
 import { Navbar } from './components/layout/Navbar';
 import { SidebarRail, NavView } from './components/layout/SidebarRail';
@@ -12,15 +12,25 @@ import { ActivityView } from './features/activity/ActivityView';
 import { JobsView } from './features/jobs/JobsView';
 import { CheckCircle2, AlertTriangle, X } from 'lucide-react';
 
+import {
+  BENGALURU_SCENARIO,
+  SOLOMON_SCENARIO,
+  INTELLIGENCE_EVIDENCE,
+  OPERATIONAL_EVENTS,
+  DEFAULT_HEALTH
+} from './data/mockScenarios';
+
 export default function App() {
-  const [plans, setPlans] = useState<PlanRun[]>([]);
+  const [plans, setPlans] = useState<PlanRun[]>([BENGALURU_SCENARIO, SOLOMON_SCENARIO]);
   const [activePlanId, setActivePlanId] = useState<string>('run-blr-20261029-01');
   const [currentView, setCurrentView] = useState<NavView>('command');
-  const [health, setHealth] = useState<SystemHealth | null>(null);
+  const [health, setHealth] = useState<SystemHealth>(DEFAULT_HEALTH);
   const [jobs, setJobs] = useState<SolverJob[]>([]);
-  const [events, setEvents] = useState<OperationalEvent[]>([]);
-  const [evidence, setEvidence] = useState<any>(null);
+  const [events, setEvents] = useState<OperationalEvent[]>(OPERATIONAL_EVENTS);
+  const [evidence, setEvidence] = useState<IntelligenceEvidence>(INTELLIGENCE_EVIDENCE);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(BENGALURU_SCENARIO.vehicles[0].id);
+  const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
 
   // Initial load
@@ -28,8 +38,9 @@ export default function App() {
     async function loadData() {
       const initialPlans = await apiClient.getRuns();
       setPlans(initialPlans);
-      if (initialPlans.length > 0 && !activePlanId) {
-        setActivePlanId(initialPlans[0].id);
+      if (initialPlans.length > 0) {
+        setActivePlanId((prev) => prev || initialPlans[0].id);
+        setSelectedVehicleId((prev) => prev || initialPlans[0].vehicles[0]?.id || null);
       }
 
       const initialHealth = await apiClient.getHealth();
@@ -47,7 +58,7 @@ export default function App() {
     loadData();
   }, []);
 
-  // Periodic polling for jobs and health
+  // Periodic polling for jobs, health, and events
   useEffect(() => {
     const interval = setInterval(async () => {
       const updatedJobs = await apiClient.getJobs();
@@ -64,6 +75,17 @@ export default function App() {
   }, []);
 
   const activePlan = plans.find((p) => p.id === activePlanId) || plans[0];
+
+  const handlePlanSelect = (id: string) => {
+    setActivePlanId(id);
+    const chosenPlan = plans.find((p) => p.id === id);
+    if (chosenPlan && chosenPlan.vehicles.length > 0) {
+      setSelectedVehicleId(chosenPlan.vehicles[0].id);
+    } else {
+      setSelectedVehicleId(null);
+    }
+    setSelectedStopId(null);
+  };
 
   const handlePlanUpdate = (updated: PlanRun) => {
     setPlans((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
@@ -87,11 +109,10 @@ export default function App() {
     });
 
     if (res.success) {
-      // Reload runs
       const updatedRuns = await apiClient.getRuns();
       setPlans(updatedRuns);
       setNotification({
-        message: `Mid-shift recovery re-plan committed! ${res.audit_log}`,
+        message: `Recovery committed: ${res.audit_log}`,
         type: 'success'
       });
       const updatedEvents = await apiClient.getOperationalEvents();
@@ -128,7 +149,7 @@ export default function App() {
         <Navbar
           currentPlan={activePlan}
           allPlans={plans}
-          onSelectPlan={(id) => setActivePlanId(id)}
+          onSelectPlan={handlePlanSelect}
           health={health}
           onRefreshHealth={async () => {
             const h = await apiClient.getHealth();
@@ -155,6 +176,11 @@ export default function App() {
               {currentView === 'command' && (
                 <CommandCenterView
                   plan={activePlan}
+                  selectedVehicleId={selectedVehicleId}
+                  selectedStopId={selectedStopId}
+                  onSelectVehicle={setSelectedVehicleId}
+                  onSelectStop={setSelectedStopId}
+                  searchQuery={searchQuery}
                   onPlanUpdate={handlePlanUpdate}
                   onTriggerReplan={handleTriggerReplan}
                 />
@@ -163,7 +189,11 @@ export default function App() {
               {currentView === 'fleet' && (
                 <FleetOperationsView
                   plan={activePlan}
+                  selectedVehicleId={selectedVehicleId}
+                  searchQuery={searchQuery}
                   onSelectVehicleForMap={(vId) => {
+                    setSelectedVehicleId(vId);
+                    setSelectedStopId(null);
                     setCurrentView('command');
                   }}
                 />
@@ -173,6 +203,11 @@ export default function App() {
                 <DispatchPlanningView
                   plan={activePlan}
                   onPlanUpdate={handlePlanUpdate}
+                  onSelectRoute={(vehicleId) => {
+                    setSelectedVehicleId(vehicleId);
+                    setSelectedStopId(null);
+                    setCurrentView('command');
+                  }}
                   onJobTriggered={async () => {
                     const updatedJobs = await apiClient.getJobs();
                     setJobs(updatedJobs);
@@ -181,7 +216,14 @@ export default function App() {
               )}
 
               {currentView === 'risk' && (
-                <SlaRiskView plan={activePlan} />
+                <SlaRiskView
+                  plan={activePlan}
+                  onInspectStop={(stopId, vehicleId) => {
+                    setSelectedVehicleId(vehicleId);
+                    setSelectedStopId(stopId);
+                    setCurrentView('command');
+                  }}
+                />
               )}
 
               {currentView === 'intelligence' && evidence && (

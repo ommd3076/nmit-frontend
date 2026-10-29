@@ -4,13 +4,6 @@ import { DataBadge } from '../../components/ui/DataBadge';
 import { apiClient } from '../../api/client';
 import {
   Cpu,
-  Play,
-  XCircle,
-  CheckCircle2,
-  AlertTriangle,
-  RotateCcw,
-  Clock,
-  Sparkles,
   Server
 } from 'lucide-react';
 

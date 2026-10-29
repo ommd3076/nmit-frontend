@@ -2,14 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { PlanRun, Vehicle } from '../../types/api';
 import {
   Truck,
-  Battery,
-  Clock,
-  AlertTriangle,
-  CheckCircle2,
   Phone,
   Search,
-  Filter,
-  ArrowUpDown,
   ChevronRight,
   MapPin,
   X
@@ -17,28 +11,39 @@ import {
 
 interface FleetOperationsViewProps {
   plan: PlanRun;
+  selectedVehicleId?: string | null;
+  searchQuery?: string;
   onSelectVehicleForMap?: (vehicleId: string) => void;
 }
 
 export const FleetOperationsView: React.FC<FleetOperationsViewProps> = ({
   plan,
+  selectedVehicleId,
+  searchQuery = '',
   onSelectVehicleForMap
 }) => {
-  const [search, setSearch] = useState('');
+  const [localSearch, setLocalSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'at_risk' | 'delayed'>('all');
-  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(() => {
+    if (selectedVehicleId) {
+      return plan.vehicles.find((v) => v.id === selectedVehicleId) || null;
+    }
+    return null;
+  });
+
+  const effectiveSearch = searchQuery || localSearch;
 
   // Filter vehicles
   const filteredVehicles = useMemo(() => {
     return plan.vehicles.filter((v) => {
       const matchSearch =
-        v.callsign.toLowerCase().includes(search.toLowerCase()) ||
-        v.driver_name.toLowerCase().includes(search.toLowerCase()) ||
-        v.vehicle_type.toLowerCase().includes(search.toLowerCase());
+        v.callsign.toLowerCase().includes(effectiveSearch.toLowerCase()) ||
+        v.driver_name.toLowerCase().includes(effectiveSearch.toLowerCase()) ||
+        v.vehicle_type.toLowerCase().includes(effectiveSearch.toLowerCase());
       const matchStatus = statusFilter === 'all' || v.status === statusFilter;
       return matchSearch && matchStatus;
     });
-  }, [plan.vehicles, search, statusFilter]);
+  }, [plan.vehicles, effectiveSearch, statusFilter]);
 
   return (
     <div className="flex-1 flex overflow-hidden p-6 gap-6 select-none">
@@ -62,8 +67,8 @@ export const FleetOperationsView: React.FC<FleetOperationsViewProps> = ({
               <input
                 type="text"
                 placeholder="Search callsign or driver…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                value={effectiveSearch}
+                onChange={(e) => setLocalSearch(e.target.value)}
                 className="pl-8 pr-3 py-1.5 text-xs bg-white/90 border border-black/5 rounded-xl text-[#15211D] focus:outline-none focus:ring-1 focus:ring-[#205A46]"
               />
             </div>

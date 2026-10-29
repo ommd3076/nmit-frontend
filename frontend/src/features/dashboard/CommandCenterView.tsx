@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { PlanRun, Stop } from '../../types/api';
+import React from 'react';
+import { PlanRun } from '../../types/api';
 import { RouteMap } from '../../components/map/RouteMap';
 import { StopDrawer } from '../../components/stops/StopDrawer';
 import { DataBadge } from '../../components/ui/DataBadge';
@@ -10,38 +10,61 @@ import {
   Clock,
   ShieldCheck,
   RefreshCw,
-  Layers,
-  ChevronRight,
   TrendingDown,
   Lock
 } from 'lucide-react';
 
 interface CommandCenterViewProps {
   plan: PlanRun;
+  selectedVehicleId?: string | null;
+  selectedStopId?: string | null;
+  onSelectVehicle?: (vehicleId: string) => void;
+  onSelectStop?: (stopId: string) => void;
+  searchQuery?: string;
   onPlanUpdate?: (updated: PlanRun) => void;
   onTriggerReplan: (stopId: string, vehicleId: string) => void;
 }
 
 export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
   plan,
-  onPlanUpdate,
+  selectedVehicleId,
+  selectedStopId,
+  onSelectVehicle,
+  onSelectStop,
+  searchQuery = '',
   onTriggerReplan
 }) => {
-  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(
-    plan.vehicles[0]?.id || null
-  );
-  const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
+  const currentVehicleId = selectedVehicleId || plan.vehicles[0]?.id || null;
+  const currentStopId = selectedStopId || null;
+
+  const handleSelectVehicle = (vId: string) => {
+    if (onSelectVehicle) onSelectVehicle(vId);
+  };
+
+  const handleSelectStop = (sId: string) => {
+    if (onSelectStop) onSelectStop(sId);
+  };
 
   // Active vehicle and route
-  const activeVehicle = plan.vehicles.find((v) => v.id === selectedVehicleId) || plan.vehicles[0];
+  const activeVehicle = plan.vehicles.find((v) => v.id === currentVehicleId) || plan.vehicles[0];
   const activeRoute = plan.routes.find((r) => r.vehicle_id === activeVehicle?.id);
-  const selectedStop = activeRoute?.stops.find((s) => s.id === selectedStopId) || null;
+  const selectedStop = activeRoute?.stops.find((s) => s.id === currentStopId) || null;
 
   // Key operational totals
   const totalStops = plan.total_stops;
   const completedStops = plan.completed_stops;
   const progressPct = Math.round((completedStops / totalStops) * 100);
-  const delayedVehiclesCount = plan.vehicles.filter((v) => v.status === 'delayed' || v.status === 'at_risk').length;
+
+  // Filter stops by searchQuery if present
+  const displayedStops = activeRoute?.stops.filter((s) => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      s.customer_name.toLowerCase().includes(query) ||
+      s.address.toLowerCase().includes(query) ||
+      s.sequence_idx.toString().includes(query)
+    );
+  }) || [];
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden select-none">
@@ -111,13 +134,10 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
         <div className="flex-1 relative flex flex-col h-full rounded-3xl overflow-hidden shadow-sm border border-black/5">
           <RouteMap
             plan={plan}
-            selectedVehicleId={selectedVehicleId}
-            selectedStopId={selectedStopId}
-            onSelectVehicle={(vId) => {
-              setSelectedVehicleId(vId);
-              setSelectedStopId(null);
-            }}
-            onSelectStop={(sId) => setSelectedStopId(sId)}
+            selectedVehicleId={currentVehicleId}
+            selectedStopId={currentStopId}
+            onSelectVehicle={handleSelectVehicle}
+            onSelectStop={handleSelectStop}
             className="flex-1 w-full h-full"
           />
         </div>
@@ -129,7 +149,9 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
             <StopDrawer
               stop={selectedStop}
               vehicle={activeVehicle}
-              onClose={() => setSelectedStopId(null)}
+              onClose={() => {
+                if (onSelectStop) onSelectStop('');
+              }}
               onTriggerReplan={onTriggerReplan}
             />
           ) : (
@@ -173,19 +195,24 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
               {/* Stop Sequence Timeline Header */}
               <div className="py-2.5 flex items-center justify-between text-[#68756F] font-semibold text-[11px]">
                 <span>Ordered Stops ({activeRoute?.stops.length || 0})</span>
-                <span className="text-[10px] font-normal">Click stop to inspect SLA</span>
+                {searchQuery && (
+                  <span className="text-[#205A46] font-medium">Filtered by: "{searchQuery}"</span>
+                )}
+                {!searchQuery && (
+                  <span className="text-[10px] font-normal">Click stop to inspect SLA</span>
+                )}
               </div>
 
               {/* Ordered Stops List */}
               <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-                {activeRoute?.stops.map((stop) => {
+                {displayedStops.map((stop) => {
                   const isLate = (stop.predicted_late_prob_max || 0) > 0.4 || stop.status === 'at_risk';
-                  const isSelected = selectedStopId === stop.id;
+                  const isSelected = currentStopId === stop.id;
 
                   return (
                     <div
                       key={stop.id}
-                      onClick={() => setSelectedStopId(stop.id)}
+                      onClick={() => handleSelectStop(stop.id)}
                       className={`p-2.5 rounded-2xl border transition-all cursor-pointer ${
                         isSelected
                           ? 'bg-[#17231F] text-white border-transparent shadow-md'

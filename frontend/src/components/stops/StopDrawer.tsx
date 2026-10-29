@@ -1,6 +1,5 @@
 import React from 'react';
 import { Stop, Vehicle } from '../../types/api';
-import { DataBadge } from '../ui/DataBadge';
 import {
   X,
   Clock,
@@ -8,10 +7,8 @@ import {
   Lock,
   Unlock,
   MapPin,
-  CheckCircle2,
   RefreshCw,
-  Package,
-  ArrowRight
+  Package
 } from 'lucide-react';
 
 interface StopDrawerProps {

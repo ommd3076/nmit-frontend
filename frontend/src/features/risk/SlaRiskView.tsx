@@ -1,22 +1,17 @@
 import React, { useState } from 'react';
-import { PlanRun, Stop } from '../../types/api';
+import { PlanRun } from '../../types/api';
 import { DataBadge } from '../../components/ui/DataBadge';
 import {
   ShieldAlert,
-  AlertTriangle,
-  TrendingDown,
-  Clock,
-  DollarSign,
-  Info,
-  Calendar,
-  Layers
+  ArrowRight
 } from 'lucide-react';
 
 interface SlaRiskViewProps {
   plan: PlanRun;
+  onInspectStop?: (stopId: string, vehicleId: string) => void;
 }
 
-export const SlaRiskView: React.FC<SlaRiskViewProps> = ({ plan }) => {
+export const SlaRiskView: React.FC<SlaRiskViewProps> = ({ plan, onInspectStop }) => {
   const [selectedRouteFilter, setSelectedRouteFilter] = useState<string>('all');
 
   // Extract all stops and filter at-risk ones
@@ -38,8 +33,8 @@ export const SlaRiskView: React.FC<SlaRiskViewProps> = ({ plan }) => {
 
     return {
       routeId: route.id,
+      vehicleId: route.vehicle_id,
       callsign: v?.callsign || route.id,
-      driverName: v?.driver_name || 'Driver',
       color: route.color_token,
       exposureInr,
       atRiskCount,
@@ -133,6 +128,7 @@ export const SlaRiskView: React.FC<SlaRiskViewProps> = ({ plan }) => {
                 <th className="pb-2.5 font-bold">P(late) Interval</th>
                 <th className="pb-2.5 font-bold">Penalty Exposure (₹83/$)</th>
                 <th className="pb-2.5 font-bold">Operational Context</th>
+                <th className="pb-2.5 text-right font-bold">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
@@ -140,7 +136,13 @@ export const SlaRiskView: React.FC<SlaRiskViewProps> = ({ plan }) => {
                 const v = plan.vehicles.find((veh) => veh.id === stop.vehicle_id);
 
                 return (
-                  <tr key={stop.id} className="hover:bg-white/80 transition-colors">
+                  <tr
+                    key={stop.id}
+                    className="hover:bg-white/80 transition-colors cursor-pointer"
+                    onClick={() => {
+                      if (onInspectStop) onInspectStop(stop.id, stop.vehicle_id);
+                    }}
+                  >
                     {/* Customer */}
                     <td className="py-3 pr-3">
                       <div className="font-bold text-[#15211D]">{stop.customer_name}</div>
@@ -175,6 +177,20 @@ export const SlaRiskView: React.FC<SlaRiskViewProps> = ({ plan }) => {
                     {/* Operational Notes */}
                     <td className="py-3 pr-3 text-[11px] text-[#68756F]">
                       {stop.notes || 'Normal delivery window'}
+                    </td>
+
+                    {/* Inspect CTA */}
+                    <td className="py-3 text-right">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onInspectStop) onInspectStop(stop.id, stop.vehicle_id);
+                        }}
+                        className="px-2 py-1 bg-black/5 hover:bg-[#17231F] hover:text-white rounded-lg font-bold text-[10px] inline-flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <span>Inspect</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
                     </td>
                   </tr>
                 );

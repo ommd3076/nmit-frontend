@@ -1,0 +1,499 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "arQ Logistics Dispatch & Optimization API",
+    "description": "REST API contract between the arQ Web Command Center and the quantum-machine-learning routing optimization backend.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8000",
+      "description": "Local development backend"
+    }
+  ],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "System Health & Concurrency Capacity",
+        "description": "Returns backend status, database WAL health, and available solver concurrency under BoundedSemaphore(2).",
+        "responses": {
+          "200": {
+            "description": "System is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemHealth"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/runs": {
+      "get": {
+        "summary": "List Plan Runs",
+        "description": "Lists active and recent dispatch plan runs.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 20 }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["active", "draft", "archived"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of plan runs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/PlanRun" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{id}": {
+      "get": {
+        "summary": "Get Plan Run by ID",
+        "description": "Fetches a complete plan graph including vehicles, assigned routes, ordered stops, and validator proof.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detailed plan run",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PlanRun" }
+              }
+            }
+          },
+          "404": {
+            "description": "Plan run not found"
+          }
+        }
+      }
+    },
+    "/api/v1/solve": {
+      "post": {
+        "summary": "Submit Solve Job",
+        "description": "Submits an asynchronous optimization job. Enforces BoundedSemaphore(2).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SolveRequest" }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Job queued or running",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SolveResponse" }
+              }
+            }
+          },
+          "429": {
+            "description": "Capacity reached (BoundedSemaphore 2/2 full)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CapacityReachedError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs": {
+      "get": {
+        "summary": "List Solver Jobs",
+        "description": "Lists active and past solver execution jobs.",
+        "responses": {
+          "200": {
+            "description": "Array of solver jobs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/SolverJob" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{id}": {
+      "get": {
+        "summary": "Get Solver Job",
+        "description": "Polls the status of a specific solver execution job.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Solver job record",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SolverJob" }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found"
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{id}/cancel": {
+      "post": {
+        "summary": "Cancel Solver Job",
+        "description": "Cancels an active or queued solver job and releases its semaphore slot.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job successfully cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "status": { "type": "string", "example": "cancelled" }
+                  },
+                  "required": ["id", "status"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recovery/replan": {
+      "post": {
+        "summary": "Mid-Shift Recovery Re-plan",
+        "description": "Executes recovery.py mid-shift re-plan with locked prefix and perturbation audit.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RecoveryReplanRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Re-plan successful",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RecoveryReplanResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/intelligence/evidence": {
+      "get": {
+        "summary": "Get QML Intelligence Evidence",
+        "description": "Retrieves empirical Platt calibration, Brier score reduction, and solver benchmarks.",
+        "responses": {
+          "200": {
+            "description": "Mathematical evidence record",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/IntelligenceEvidence" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SystemCapacity": {
+        "type": "object",
+        "properties": {
+          "max_slots": { "type": "integer", "example": 2 },
+          "active_slots": { "type": "integer", "example": 1 },
+          "available_slots": { "type": "integer", "example": 1 },
+          "active_job_ids": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["max_slots", "active_slots", "available_slots", "active_job_ids"]
+      },
+      "SystemHealth": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["healthy", "degraded", "offline"] },
+          "backend_url": { "type": "string" },
+          "version": { "type": "string" },
+          "timestamp": { "type": "string" },
+          "capacity": { "$ref": "#/components/schemas/SystemCapacity" },
+          "engines_available": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["status", "backend_url", "version", "timestamp", "capacity", "engines_available"]
+      },
+      "SolveRequest": {
+        "type": "object",
+        "properties": {
+          "scenario_id": { "type": "string" },
+          "engine": { "type": "string", "enum": ["qpiai_opt", "qaoa", "financial", "exact"] },
+          "penalty_weights": {
+            "type": "object",
+            "properties": {
+              "delay_weight": { "type": "number" },
+              "mileage_weight": { "type": "number" }
+            }
+          },
+          "seed": { "type": "integer" }
+        },
+        "required": ["scenario_id", "engine"]
+      },
+      "SolveResponse": {
+        "type": "object",
+        "properties": {
+          "job_id": { "type": "string" },
+          "status": { "type": "string" },
+          "submitted_at": { "type": "string" },
+          "poll_url": { "type": "string" }
+        },
+        "required": ["job_id", "status"]
+      },
+      "CapacityReachedError": {
+        "type": "object",
+        "properties": {
+          "detail": { "type": "string", "example": "capacity_reached" },
+          "message": { "type": "string" },
+          "active_jobs": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "retry_after_seconds": { "type": "integer", "example": 4 }
+        },
+        "required": ["detail", "retry_after_seconds"]
+      },
+      "SolverJob": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "scenario_id": { "type": "string" },
+          "status": { "type": "string", "enum": ["queued", "running", "succeeded", "failed", "cancelled", "interrupted"] },
+          "progress_pct": { "type": "number" },
+          "elapsed_seconds": { "type": "number" },
+          "engine": { "type": "string" },
+          "provenance_badge": { "type": "string" },
+          "result_plan_id": { "type": "string", "nullable": true },
+          "error_message": { "type": "string", "nullable": true },
+          "submitted_at": { "type": "string" }
+        },
+        "required": ["id", "scenario_id", "status", "progress_pct", "elapsed_seconds", "engine", "provenance_badge"]
+      },
+      "Vehicle": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "callsign": { "type": "string" },
+          "driver_name": { "type": "string" },
+          "phone": { "type": "string" },
+          "status": { "type": "string", "enum": ["active", "idle", "at_risk", "delayed", "maintenance"] },
+          "vehicle_type": { "type": "string" },
+          "battery_or_fuel_pct": { "type": "number" },
+          "capacity_kg": { "type": "number" },
+          "used_capacity_kg": { "type": "number" },
+          "route_id": { "type": "string" },
+          "current_lat": { "type": "number" },
+          "current_lng": { "type": "number" },
+          "current_x": { "type": "number" },
+          "current_y": { "type": "number" },
+          "heading_deg": { "type": "number" },
+          "speed_kmh": { "type": "number" },
+          "last_ping_iso": { "type": "string" },
+          "eta_deviation_minutes": { "type": "number" },
+          "assigned_stops_count": { "type": "number" },
+          "completed_stops_count": { "type": "number" }
+        },
+        "required": ["id", "callsign", "driver_name", "status", "vehicle_type", "battery_or_fuel_pct", "capacity_kg", "used_capacity_kg", "route_id"]
+      },
+      "Stop": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "route_id": { "type": "string" },
+          "vehicle_id": { "type": "string" },
+          "sequence_idx": { "type": "integer" },
+          "customer_name": { "type": "string" },
+          "address": { "type": "string" },
+          "window_start": { "type": "string" },
+          "window_end": { "type": "string" },
+          "eta_min": { "type": "string" },
+          "eta_max": { "type": "string" },
+          "predicted_late_prob_min": { "type": "number" },
+          "predicted_late_prob_max": { "type": "number" },
+          "penalty_exposure_inr": { "type": "number" },
+          "penalty_exposure_usd": { "type": "number" },
+          "demand_kg": { "type": "number" },
+          "is_locked": { "type": "boolean" },
+          "is_completed": { "type": "boolean" },
+          "status": { "type": "string", "enum": ["pending", "en_route", "arrived", "completed", "at_risk", "failed"] },
+          "lat": { "type": "number" },
+          "lng": { "type": "number" },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "notes": { "type": "string" }
+        },
+        "required": ["id", "route_id", "vehicle_id", "sequence_idx", "customer_name", "window_start", "window_end", "is_locked", "is_completed", "status"]
+      },
+      "Route": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "vehicle_id": { "type": "string" },
+          "color_token": { "type": "string" },
+          "total_distance_km": { "type": "number" },
+          "total_duration_minutes": { "type": "number" },
+          "stops": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Stop" }
+          },
+          "geometry_coordinates": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": { "type": "number" }
+            }
+          }
+        },
+        "required": ["id", "vehicle_id", "color_token", "stops", "geometry_coordinates"]
+      },
+      "ValidatorResult": {
+        "type": "object",
+        "properties": {
+          "passed": { "type": "boolean" },
+          "constraints_checked": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "violations": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "evaluated_at": { "type": "string" }
+        },
+        "required": ["passed", "constraints_checked", "violations"]
+      },
+      "PlanRun": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "scenario_id": { "type": "string" },
+          "scenario_name": { "type": "string" },
+          "coordinate_system": { "type": "string", "enum": ["lat_lon", "cartesian_xy"] },
+          "status": { "type": "string", "enum": ["active", "draft", "archived"] },
+          "engine": { "type": "string" },
+          "provenance_badge": { "type": "string" },
+          "created_at": { "type": "string" },
+          "total_vehicles": { "type": "integer" },
+          "total_stops": { "type": "integer" },
+          "completed_stops": { "type": "integer" },
+          "total_sla_exposure_inr": { "type": "number" },
+          "assumed_rate_label": { "type": "string" },
+          "validator_result": { "$ref": "#/components/schemas/ValidatorResult" },
+          "vehicles": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Vehicle" }
+          },
+          "routes": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Route" }
+          }
+        },
+        "required": ["id", "scenario_id", "scenario_name", "coordinate_system", "status", "engine", "provenance_badge", "vehicles", "routes"]
+      },
+      "RecoveryReplanRequest": {
+        "type": "object",
+        "properties": {
+          "run_id": { "type": "string" },
+          "vehicle_id": { "type": "string" },
+          "delayed_stop_id": { "type": "string" },
+          "delay_minutes": { "type": "number" },
+          "locked_stop_ids": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["run_id", "vehicle_id", "delayed_stop_id", "delay_minutes", "locked_stop_ids"]
+      },
+      "RecoveryReplanResponse": {
+        "type": "object",
+        "properties": {
+          "new_run_id": { "type": "string" },
+          "provenance_badge": { "type": "string" },
+          "audit_log": {
+            "type": "object",
+            "properties": {
+              "timestamp": { "type": "string" },
+              "actor": { "type": "string" },
+              "reason": { "type": "string" },
+              "stops_reordered": { "type": "integer" },
+              "sla_breaches_prevented": { "type": "integer" },
+              "exposure_delta_inr": { "type": "number" }
+            }
+          },
+          "validator_result": { "$ref": "#/components/schemas/ValidatorResult" }
+        },
+        "required": ["provenance_badge", "audit_log", "validator_result"]
+      },
+      "IntelligenceEvidence": {
+        "type": "object",
+        "properties": {
+          "model_name": { "type": "string" },
+          "brier_score": { "type": "number" },
+          "brier_reduction_pct": { "type": "number" },
+          "regret_reduction_pct": { "type": "number" },
+          "user_claim_verified": { "type": "boolean" },
+          "user_claim_note": { "type": "string" },
+          "disclaimer": { "type": "string" }
+        },
+        "required": ["model_name", "brier_score", "brier_reduction_pct", "regret_reduction_pct", "disclaimer"]
+      }
+    }
+  }
+}
