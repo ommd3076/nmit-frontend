@@ -31,27 +31,24 @@ export const JobsView: React.FC<JobsViewProps> = ({ jobs, health, onRefreshJobs 
   return (
     <div className="flex-1 flex flex-col overflow-y-auto p-6 gap-6 select-none text-xs">
       {/* Top Concurrency & Capacity Card */}
-      <div className="glass-panel-strong rounded-3xl p-5 border border-white/80 shadow-lg">
-        <div className="flex flex-wrap items-center justify-between pb-4 border-b border-black/5 gap-4">
+      <div className="bg-white rounded-3xl p-6 border border-[#EAE6DF] shadow-xs">
+        <div className="flex flex-wrap items-center justify-between pb-4 border-b border-[#EAE6DF] gap-4">
           <div>
-            <div className="text-[10px] uppercase font-mono tracking-wider text-[#77736D]">
-              07 · CONCURRENCY CONTROL & WORKER PIPELINE
-            </div>
-            <div className="flex items-center space-x-2 mt-0.5">
-              <Cpu className="w-5 h-5 text-[#205A46]" />
-              <h2 className="text-lg font-extrabold text-[#15211D] tracking-tight">
+            <div className="flex items-center space-x-2">
+              <Cpu className="w-5 h-5 text-[#1E5A44]" />
+              <h2 className="text-xl font-extrabold text-[#141F1A] tracking-tight">
                 Solver Concurrency & Job Pipeline
               </h2>
             </div>
-            <p className="text-xs text-[#68756F] mt-1">
+            <p className="text-xs text-[#7D8D85] mt-1">
               Protected by FastAPI BoundedSemaphore(2) with SQLite WAL job persistence
             </p>
           </div>
 
           <div className="flex items-center space-x-4">
             {/* 2-Slot Visual Indicators */}
-            <div className="flex items-center space-x-2 bg-white/80 border border-black/5 p-2 rounded-2xl">
-              <span className="text-[10px] uppercase font-bold text-[#929E99]">
+            <div className="flex items-center space-x-2 bg-[#F5F3ED] border border-[#E5E0D8] p-2 rounded-full px-3">
+              <span className="text-[10px] uppercase font-bold text-[#7D8D85]">
                 Solver Slots ({activeSlots}/{maxSlots}):
               </span>
               <div className="flex space-x-1.5">
@@ -60,10 +57,10 @@ export const JobsView: React.FC<JobsViewProps> = ({ jobs, health, onRefreshJobs 
                   return (
                     <div
                       key={slotIdx}
-                      className={`w-4 h-4 rounded-md flex items-center justify-center font-bold text-[9px] ${
+                      className={`w-4 h-4 rounded-full flex items-center justify-center font-bold text-[9px] ${
                         isOccupied
-                          ? 'bg-[#205A46] text-white shadow-xs animate-pulse'
-                          : 'bg-black/5 text-[#929E99]'
+                          ? 'bg-[#1E5A44] text-white shadow-xs animate-pulse'
+                          : 'bg-[#E5E0D8] text-[#7D8D85]'
                       }`}
                     >
                       {slotIdx + 1}
@@ -76,28 +73,28 @@ export const JobsView: React.FC<JobsViewProps> = ({ jobs, health, onRefreshJobs 
         </div>
 
         {/* 429 Capacity Reached Guard Description */}
-        <div className="mt-4 p-3 bg-white/80 border border-black/5 rounded-2xl flex items-center justify-between">
-          <div className="flex items-center space-x-2 text-[#68756F]">
-            <Server className="w-4 h-4 text-[#205A46]" />
+        <div className="mt-4 p-3.5 bg-[#F5F3ED]/70 border border-[#E5E0D8] rounded-2xl flex items-center justify-between">
+          <div className="flex items-center space-x-2 text-[#4D5C54]">
+            <Server className="w-4 h-4 text-[#1E5A44]" />
             <span>
               If 2 solver jobs are running concurrently, incoming solve requests receive a <strong>429 capacity_reached</strong> with exponential backoff (2s → 4s → 8s).
             </span>
           </div>
-          <span className="text-[11px] font-semibold text-[#205A46] bg-[#E2F4EE] px-2.5 py-0.5 rounded-full">
+          <span className="text-[11px] font-semibold text-[#1E5A44] bg-[#E8F5EE] border border-[#A8DBC9] px-3 py-0.5 rounded-full shadow-xs">
             Semaphore Guard Active
           </span>
         </div>
       </div>
 
       {/* Live Jobs Table */}
-      <div className="glass-panel-strong rounded-3xl p-5 border border-white/80 shadow-lg">
-        <div className="flex items-center justify-between pb-3 border-b border-black/5">
-          <h3 className="font-extrabold text-sm text-[#15211D]">
+      <div className="bg-white rounded-3xl p-6 border border-[#EAE6DF] shadow-xs">
+        <div className="flex items-center justify-between pb-3 border-b border-[#EAE6DF]">
+          <h3 className="font-extrabold text-base text-[#141F1A]">
             Job Queue & Execution History ({jobs.length})
           </h3>
           <button
             onClick={onRefreshJobs}
-            className="px-3 py-1 bg-white/80 hover:bg-white border border-black/5 rounded-xl font-medium text-[#15211D] transition-colors cursor-pointer"
+            className="px-3.5 py-1.5 bg-[#F5F3ED] hover:bg-black/5 border border-[#E5E0D8] rounded-full font-semibold text-[#141F1A] transition-all cursor-pointer"
           >
             Poll State
           </button>
@@ -106,8 +103,8 @@ export const JobsView: React.FC<JobsViewProps> = ({ jobs, health, onRefreshJobs 
         <div className="overflow-x-auto mt-3">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="border-b border-black/5 text-[#929E99] text-[10px] uppercase font-bold tracking-wider">
-                <th className="pb-2.5 font-bold">Job ID</th>
+              <tr className="border-b border-[#EAE6DF] text-[#7D8D85] text-[10px] uppercase font-bold tracking-wider">
+                <th className="pb-3 font-bold">Job ID</th>
                 <th className="pb-2.5 font-bold">Solver Architecture</th>
                 <th className="pb-2.5 font-bold">Provenance</th>
                 <th className="pb-2.5 font-bold">Progress</th>

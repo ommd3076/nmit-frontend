@@ -104,6 +104,7 @@ export interface PlanRun {
   completed_stops: number;
   total_sla_exposure_inr: number;
   assumed_rate_label: string;
+  objective_cost?: string;
   validator_result: ValidatorResult;
   vehicles: Vehicle[];
   routes: Route[];

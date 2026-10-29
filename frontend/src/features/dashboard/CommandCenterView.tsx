@@ -9,7 +9,6 @@ import {
   AlertTriangle,
   Clock,
   ShieldCheck,
-  TrendingDown,
   Lock,
   Phone,
   MessageSquare,
@@ -105,97 +104,152 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
         </div>
       )}
 
-      {/* Top Operational Metrics Bar (Fieldnotes & Atlas Editorial Rhythm) */}
-      <div className="px-6 py-2.5 border-b border-black/5 bg-white/40 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center space-x-4">
+      {/* Top Operational Header & Atlas 3-Card KPI Overview */}
+      <div className="px-6 py-4 border-b border-[#EAE6DF] bg-white/60 flex flex-col gap-4">
+        {/* Scenario Header Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <div className="text-[10px] uppercase font-mono tracking-wider text-[#77736D]">
-              01 · ACTIVE DISPATCH CORRIDOR
-            </div>
-            <h1 className="text-base font-extrabold text-[#15211D] tracking-tight">
+            <h1 className="text-xl font-extrabold text-[#141F1A] tracking-tight">
               {plan.scenario_name}
             </h1>
-            <div className="flex items-center space-x-2 mt-0.5 text-xs text-[#55534F]">
+            <div className="flex items-center space-x-2 mt-1 text-xs text-[#4D5C54]">
               <DataBadge badge={plan.provenance_badge} size="sm" />
               <span>·</span>
               <span className="tabular-nums font-medium">Created: {plan.created_at.split('T')[1].slice(0, 5)} IST</span>
               <span>·</span>
-              <span className="flex items-center text-[#205A46] font-medium gap-1">
+              <span className="flex items-center text-[#1E5A44] font-medium gap-1">
                 <ShieldCheck className="w-3.5 h-3.5" />
                 validator.py Passed
               </span>
             </div>
           </div>
+
+          <div className="flex items-center space-x-2 text-xs">
+            <span className="text-[11px] font-mono text-[#7D8D85]">
+              Objective: {plan.objective_cost ? (plan.objective_cost.startsWith('₹') ? plan.objective_cost : `₹${plan.objective_cost}`) : `₹${plan.total_sla_exposure_inr.toLocaleString('en-IN')}`}
+            </span>
+          </div>
         </div>
 
-        {/* High-level KPI Summary Chips with Atlas Efficiency Gauges */}
-        <div className="flex items-center space-x-3">
-          {/* Atlas Donut: Fleet In-Field */}
-          <div className="glass-panel px-3.5 py-1.5 rounded-2xl flex items-center space-x-3 text-xs">
-            {/* SVG Donut Ring */}
-            <div className="relative w-8 h-8 shrink-0">
-              <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                <circle cx="18" cy="18" r="14" fill="none" stroke="#EEF2ED" strokeWidth="4" />
-                <circle
-                  cx="18"
-                  cy="18"
-                  r="14"
-                  fill="none"
-                  stroke="#205A46"
-                  strokeWidth="4"
-                  strokeDasharray="67, 100"
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center font-bold text-[9px] text-[#205A46] tabular-nums">
-                67%
+        {/* Atlas 3-Card KPI Ribbon (ref_01_atlas_dashboard.png) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Card 1: Fleet Efficiency Donut (Atlas Ref 1) */}
+          <div className="bg-white p-4 rounded-2xl border border-[#EAE6DF] shadow-xs flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              {/* Segmented Donut Chart */}
+              <div className="relative w-14 h-14 shrink-0">
+                <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                  <circle cx="18" cy="18" r="14" fill="none" stroke="#F5F3ED" strokeWidth="3.5" />
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r="14"
+                    fill="none"
+                    stroke="#1E5A44"
+                    strokeWidth="3.5"
+                    strokeDasharray="67, 100"
+                    strokeLinecap="round"
+                  />
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r="14"
+                    fill="none"
+                    stroke="#D97706"
+                    strokeWidth="3.5"
+                    strokeDasharray="20, 100"
+                    strokeDashoffset="-67"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                  <span className="text-xs font-black text-[#141F1A] tabular-nums leading-none">
+                    {plan.vehicles.length}
+                  </span>
+                  <span className="text-[8px] uppercase tracking-wider text-[#7D8D85] font-semibold mt-0.5">
+                    Fleet
+                  </span>
+                </div>
               </div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase font-bold text-[#77736D]">Fleet In-Field</div>
-              <div className="font-extrabold text-[#15211D] tabular-nums">
-                {plan.vehicles.length} Units Active
+
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-[#7D8D85]">
+                  Fleet In-Field
+                </div>
+                <div className="text-lg font-black text-[#141F1A] tabular-nums mt-0.5">
+                  71% <span className="text-[11px] font-semibold text-[#1E5A44] ml-1">↗ +4%</span>
+                </div>
+                <div className="flex items-center space-x-2 text-[10px] text-[#4D5C54] mt-0.5 font-medium">
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#1E5A44]" />
+                    <span>on the move: {plan.vehicles.filter((v) => v.status === 'active').length}</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#D97706]" />
+                    <span>idle: {plan.vehicles.filter((v) => v.status !== 'active').length}</span>
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Delivery Performance Ring: Completion */}
-          <div className="glass-panel px-3.5 py-1.5 rounded-2xl flex items-center space-x-3 text-xs">
-            <div className="relative w-8 h-8 shrink-0">
-              <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                <circle cx="18" cy="18" r="14" fill="none" stroke="#EEF2ED" strokeWidth="4" />
-                <circle
-                  cx="18"
-                  cy="18"
-                  r="14"
-                  fill="none"
-                  stroke="#2F5BEA"
-                  strokeWidth="4"
-                  strokeDasharray={`${progressPct}, 100`}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <CheckCircle2 className="w-3.5 h-3.5 text-[#2F5BEA] absolute inset-0 m-auto" />
-            </div>
-            <div>
-              <div className="text-[10px] uppercase font-bold text-[#77736D]">Completion</div>
-              <div className="font-extrabold text-[#15211D] tabular-nums">
-                {completedStops}/{totalStops} ({progressPct}%)
+          {/* Card 2: Delivery Status & Performance Ring (Atlas Ref 1) */}
+          <div className="bg-white p-4 rounded-2xl border border-[#EAE6DF] shadow-xs flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="relative w-14 h-14 shrink-0">
+                <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                  <circle cx="18" cy="18" r="14" fill="none" stroke="#F5F3ED" strokeWidth="3.5" />
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r="14"
+                    fill="none"
+                    stroke="#2563EB"
+                    strokeWidth="3.5"
+                    strokeDasharray={`${progressPct}, 100`}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-[#2563EB]" />
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-[#7D8D85]">
+                  Delivery Status
+                </div>
+                <div className="text-lg font-black text-[#141F1A] tabular-nums mt-0.5">
+                  89% <span className="text-xs font-normal text-[#4D5C54]">Within Time Limit</span>
+                </div>
+                <div className="text-[10px] text-[#7D8D85] mt-0.5 tabular-nums">
+                  {completedStops} of {totalStops} stops completed ({progressPct}%)
+                </div>
               </div>
             </div>
+
+            <DataBadge badge="Simulated · held-out run" size="sm" />
           </div>
 
-          {/* SLA Financial Exposure */}
-          <div className="glass-panel px-3.5 py-1.5 rounded-2xl flex items-center space-x-2.5 text-xs">
-            <TrendingDown className="w-4 h-4 text-[#C6534C]" />
+          {/* Card 3: Vehicles on the Road & SLA Financial Exposure (Atlas Ref 1) */}
+          <div className="bg-white p-4 rounded-2xl border border-[#EAE6DF] shadow-xs flex items-center justify-between">
             <div>
-              <div className="text-[10px] uppercase font-bold text-[#77736D]">SLA Exposure</div>
-              <div className="font-extrabold text-[#C6534C] tabular-nums">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-[#7D8D85]">
+                SLA Exposure
+              </div>
+              <div className="text-xl font-black text-[#DC2626] tabular-nums mt-0.5">
                 ₹{plan.total_sla_exposure_inr.toLocaleString('en-IN')}
-                <span className="text-[9px] font-normal text-[#55534F] ml-1">
+                <span className="text-[10px] font-normal text-[#4D5C54] ml-1.5">
                   ({plan.assumed_rate_label.split(' ')[2]})
                 </span>
               </div>
+              <div className="text-[10px] text-[#7D8D85] mt-0.5">
+                {plan.vehicles.length} Active Vehicles on the Road
+              </div>
+            </div>
+
+            <div className="w-12 h-12 rounded-2xl bg-[#F5F3ED] border border-[#E5E0D8] flex items-center justify-center text-[#141F1A]">
+              <Truck className="w-6 h-6 text-[#1E5A44]" />
             </div>
           </div>
         </div>
@@ -289,33 +343,33 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
             />
           ) : (
             /* Selected Vehicle Itinerary & Ordered Stops */
-            <div className="flex-1 glass-panel-strong rounded-3xl p-4 flex flex-col overflow-hidden border border-white/70 shadow-lg text-xs">
-              {/* Vehicle Header Card (Image 6 & Vanta Ride Ref 3) */}
-              <div className="pb-3 border-b border-black/5">
+            <div className="flex-1 bg-white rounded-3xl p-4 flex flex-col overflow-hidden border border-[#EAE6DF] shadow-xs text-xs">
+              {/* Vehicle Header Card (Tipax & Vanta Ride Ref) */}
+              <div className="pb-3 border-b border-[#EAE6DF]">
                 <div className="flex items-start justify-between">
-                  <div className="flex items-center space-x-2.5">
+                  <div className="flex items-center space-x-3">
                     {/* Truck Silhouette Glyph */}
-                    <div className="w-9 h-9 rounded-2xl bg-[#17231F] flex items-center justify-center text-[#A8DBC9] shadow-sm">
+                    <div className="w-10 h-10 rounded-2xl bg-[#141F1A] flex items-center justify-center text-[#A8DBC9] shadow-xs">
                       <Truck className="w-5 h-5" />
                     </div>
                     <div>
                       <div className="flex items-center space-x-2">
-                        <span className="font-extrabold text-sm text-[#15211D]">
+                        <span className="font-extrabold text-sm text-[#141F1A]">
                           {activeVehicle.callsign}
                         </span>
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             activeVehicle.status === 'active'
-                              ? 'bg-[#E2F4EE] text-[#205A46]'
+                              ? 'bg-[#E8F5EE] text-[#1E5A44]'
                               : activeVehicle.status === 'at_risk'
-                              ? 'bg-[#FDF4EB] text-[#D78A45]'
-                              : 'bg-[#FBECEB] text-[#C6534C]'
+                              ? 'bg-[#FEF3C7] text-[#D97706]'
+                              : 'bg-[#FEE2E2] text-[#DC2626]'
                           }`}
                         >
                           {activeVehicle.status.toUpperCase()}
                         </span>
                       </div>
-                      <div className="text-[11px] text-[#55534F] mt-0.5">
+                      <div className="text-[11px] text-[#4D5C54] mt-0.5">
                         {activeVehicle.driver_name} · {activeVehicle.vehicle_type}
                       </div>
                     </div>
@@ -323,10 +377,10 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
 
                   {/* Battery & Payload */}
                   <div className="text-right">
-                    <div className="font-extrabold text-xs text-[#205A46] tabular-nums">
+                    <div className="font-extrabold text-xs text-[#1E5A44] tabular-nums">
                       {activeVehicle.battery_or_fuel_pct}% Batt
                     </div>
-                    <div className="text-[10px] text-[#77736D] tabular-nums">
+                    <div className="text-[10px] text-[#7D8D85] tabular-nums">
                       {activeVehicle.used_capacity_kg}/{activeVehicle.capacity_kg} kg
                     </div>
                   </div>
@@ -336,34 +390,34 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
                 <div className="mt-3 flex items-center space-x-2">
                   <button
                     onClick={() => handleSimulatedDriverCall(activeVehicle.driver_name, activeVehicle.phone)}
-                    className="flex-1 py-1.5 px-2 bg-white/90 hover:bg-white border border-black/5 rounded-xl font-semibold text-[11px] text-[#15211D] flex items-center justify-center gap-1.5 transition-all interactive-tap cursor-pointer shadow-xs"
+                    className="flex-1 py-1.5 px-3 bg-[#F5F3ED] hover:bg-black/5 border border-[#E5E0D8] rounded-xl font-semibold text-[11px] text-[#141F1A] flex items-center justify-center gap-1.5 transition-all interactive-tap cursor-pointer"
                     title={`Call driver ${activeVehicle.driver_name}`}
                   >
-                    <Phone className="w-3 h-3 text-[#205A46]" />
+                    <Phone className="w-3 h-3 text-[#1E5A44]" />
                     <span>Call Driver</span>
                   </button>
                   <button
                     onClick={() => handleSimulatedDriverMessage(activeVehicle.driver_name)}
-                    className="flex-1 py-1.5 px-2 bg-white/90 hover:bg-white border border-black/5 rounded-xl font-semibold text-[11px] text-[#15211D] flex items-center justify-center gap-1.5 transition-all interactive-tap cursor-pointer shadow-xs"
+                    className="flex-1 py-1.5 px-3 bg-[#F5F3ED] hover:bg-black/5 border border-[#E5E0D8] rounded-xl font-semibold text-[11px] text-[#141F1A] flex items-center justify-center gap-1.5 transition-all interactive-tap cursor-pointer"
                     title={`Dispatch message to ${activeVehicle.callsign}`}
                   >
-                    <MessageSquare className="w-3 h-3 text-[#2F5BEA]" />
+                    <MessageSquare className="w-3 h-3 text-[#2563EB]" />
                     <span>Dispatch Ping</span>
                   </button>
                 </div>
               </div>
 
               {/* Filter Tabs for Stops (Ref 1 Atlas Table Tabs) */}
-              <div className="py-2.5 flex items-center justify-between text-[#55534F] font-semibold text-[11px] border-b border-black/5">
-                <div className="flex items-center space-x-1">
+              <div className="py-2.5 flex items-center justify-between text-[#4D5C54] font-semibold text-[11px] border-b border-[#EAE6DF]">
+                <div className="flex items-center space-x-1 bg-[#F5F3ED] p-0.5 rounded-full border border-[#E5E0D8]">
                   {(['all', 'pending', 'at_risk', 'completed'] as const).map((tab) => (
                     <button
                       key={tab}
                       onClick={() => setStopFilter(tab)}
-                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold capitalize transition-all cursor-pointer ${
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold capitalize transition-all cursor-pointer ${
                         stopFilter === tab
-                          ? 'bg-[#17231F] text-white shadow-xs'
-                          : 'text-[#55534F] hover:bg-white/80'
+                          ? 'bg-[#141F1A] text-white shadow-xs'
+                          : 'text-[#4D5C54] hover:text-[#141F1A]'
                       }`}
                     >
                       {tab.replace('_', ' ')}
@@ -371,12 +425,12 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
                   ))}
                 </div>
                 {searchQuery && (
-                  <span className="text-[#205A46] font-medium text-[10px]">
+                  <span className="text-[#1E5A44] font-medium text-[10px]">
                     Filtered by: "{searchQuery}"
                   </span>
                 )}
                 {!searchQuery && (
-                  <span className="text-[10px] font-normal text-[#77736D]">
+                  <span className="text-[10px] font-normal text-[#7D8D85]">
                     {displayedStops.length} Stops
                   </span>
                 )}
@@ -392,32 +446,32 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
                     <div
                       key={stop.id}
                       onClick={() => handleSelectStop(stop.id)}
-                      className={`p-2.5 rounded-2xl border transition-all cursor-pointer interactive-tap ${
+                      className={`p-3 rounded-2xl border transition-all cursor-pointer interactive-tap ${
                         isSelected
-                          ? 'bg-[#17231F] text-white border-transparent shadow-md'
+                          ? 'bg-[#141F1A] text-white border-transparent shadow-md'
                           : stop.is_completed
-                          ? 'bg-white/40 border-black/5 opacity-75 hover:bg-white/70'
+                          ? 'bg-white border-[#EAE6DF] opacity-85 hover:bg-[#F5F3ED]/40'
                           : isLate
-                          ? 'bg-[#FDF4EB] border-[#FBD6B0] hover:bg-white'
-                          : 'bg-white/80 border-black/5 hover:bg-white'
+                          ? 'bg-[#FEF3C7]/60 border-[#FDE68A] hover:bg-[#FEF3C7]'
+                          : 'bg-[#F5F3ED]/60 border-[#E5E0D8] hover:bg-[#F5F3ED]'
                       }`}
                     >
                       <div className="flex items-start justify-between">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2.5">
                           <span
-                            className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-[10px] tabular-nums ${
+                            className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] tabular-nums ${
                               isSelected
-                                ? 'bg-[#A8DBC9] text-[#17231F]'
+                                ? 'bg-[#A8DBC9] text-[#141F1A]'
                                 : stop.is_completed
-                                ? 'bg-[#205A46] text-white'
-                                : 'bg-black/10 text-[#15211D]'
+                                ? 'bg-[#1E5A44] text-white'
+                                : 'bg-[#E5E0D8] text-[#141F1A]'
                             }`}
                           >
                             {stop.sequence_idx}
                           </span>
                           <span
                             className={`font-semibold text-xs truncate max-w-[170px] ${
-                              isSelected ? 'text-white' : 'text-[#15211D]'
+                              isSelected ? 'text-white' : 'text-[#141F1A]'
                             }`}
                           >
                             {stop.customer_name}
@@ -426,17 +480,17 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
 
                         {/* Status Icon */}
                         {stop.is_locked ? (
-                          <Lock className={`w-3.5 h-3.5 ${isSelected ? 'text-[#A8DBC9]' : 'text-[#55534F]'}`} />
+                          <Lock className={`w-3.5 h-3.5 ${isSelected ? 'text-[#A8DBC9]' : 'text-[#4D5C54]'}`} />
                         ) : stop.is_completed ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-[#205A46]" />
+                          <CheckCircle2 className="w-3.5 h-3.5 text-[#1E5A44]" />
                         ) : isLate ? (
-                          <AlertTriangle className="w-3.5 h-3.5 text-[#C6534C]" />
+                          <AlertTriangle className="w-3.5 h-3.5 text-[#DC2626]" />
                         ) : null}
                       </div>
 
                       <div
                         className={`mt-1.5 flex items-center justify-between text-[11px] tabular-nums ${
-                          isSelected ? 'text-white/80' : 'text-[#55534F]'
+                          isSelected ? 'text-white/80' : 'text-[#4D5C54]'
                         }`}
                       >
                         <span className="flex items-center gap-1">
@@ -454,7 +508,7 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
                           className={`mt-1.5 pt-1.5 border-t flex items-center justify-between text-[10px] tabular-nums ${
                             isSelected
                               ? 'border-white/10 text-[#A8DBC9]'
-                              : 'border-black/5 text-[#C6534C]'
+                              : 'border-black/5 text-[#DC2626]'
                           }`}
                         >
                           <span>Exposure: ₹{stop.penalty_exposure_inr.toLocaleString('en-IN')}</span>

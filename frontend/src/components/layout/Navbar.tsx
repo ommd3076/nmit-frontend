@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { HealthPill } from '../ui/HealthPill';
 import { SystemHealth, PlanRun } from '../../types/api';
-import { Clock, Layers, Bell, Search, Sparkles } from 'lucide-react';
+import { Layers, Bell, Search, Sparkles } from 'lucide-react';
 
 interface NavbarProps {
   currentPlan: PlanRun;
@@ -45,25 +45,36 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   return (
-    <header className="h-16 px-6 glass-panel border-b border-black/5 flex items-center justify-between z-30 select-none">
-      {/* Brand & Product Identity */}
-      <div className="flex items-center space-x-6">
+    <header className="h-16 px-6 bg-white/90 backdrop-blur-md border-b border-[#EAE6DF] flex items-center justify-between z-30 select-none">
+      {/* Left: Brand + Date Widget + Scenario Switcher */}
+      <div className="flex items-center space-x-5">
         <div className="flex items-baseline space-x-2">
-          <span className="text-2xl font-black tracking-tight text-[#15211D]">
-            <span className="text-[#205A46]">ar</span>Q
+          <span className="text-2xl font-black tracking-tight text-[#141F1A]">
+            <span className="text-[#1E5A44]">ar</span>Q
           </span>
-          <span className="text-[10px] uppercase font-mono font-bold tracking-widest text-[#205A46] bg-[#E2F4EE] px-2.5 py-0.5 rounded-full border border-[#A8DBC9]">
+          <span className="text-[10px] uppercase font-mono font-bold tracking-widest text-[#1E5A44] bg-[#E8F5EE] px-2.5 py-0.5 rounded-full border border-[#A8DBC9]">
             DISPATCH OS · QML-01
           </span>
         </div>
 
+        {/* Atlas Date Pill */}
+        <div className="hidden lg:flex items-center space-x-2 pl-3 border-l border-black/5 text-xs">
+          <div className="w-7 h-7 rounded-full bg-[#141F1A] text-white flex items-center justify-center font-bold text-[11px] tabular-nums">
+            29
+          </div>
+          <div className="leading-tight">
+            <div className="font-bold text-[11px] text-[#141F1A]">Wed, October</div>
+            <div className="text-[10px] text-[#7D8D85] tabular-nums">{timeStr || '14:40:00 IST'}</div>
+          </div>
+        </div>
+
         {/* Scenario Switcher Dropdown */}
-        <div className="relative flex items-center space-x-2 bg-white/70 border border-black/5 rounded-2xl px-3 py-1 text-xs shadow-xs">
-          <Layers className="w-3.5 h-3.5 text-[#205A46]" />
+        <div className="relative flex items-center space-x-2 bg-[#F5F3ED] border border-[#E5E0D8] rounded-full px-3 py-1.5 text-xs shadow-xs">
+          <Layers className="w-3.5 h-3.5 text-[#1E5A44]" />
           <select
             value={currentPlan.id}
             onChange={(e) => onSelectPlan(e.target.value)}
-            className="bg-transparent font-medium text-[#15211D] focus:outline-none cursor-pointer pr-2"
+            className="bg-transparent font-medium text-[#141F1A] focus:outline-none cursor-pointer pr-1"
           >
             {allPlans.map((p) => (
               <option key={p.id} value={p.id}>
@@ -75,33 +86,27 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Center Search Input */}
-      <div className="flex-1 max-w-md mx-8 hidden md:block">
+      <div className="flex-1 max-w-md mx-6 hidden md:block">
         <div className="relative">
-          <Search className="w-4 h-4 text-[#68756F] absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-3.5 h-3.5 text-[#7D8D85] absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search vehicles, stops, waypoints, SLA deadlines…"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-9 pr-12 py-1.5 text-xs rounded-full bg-white/80 border border-black/5 text-[#15211D] placeholder-[#68756F] focus:outline-none focus:ring-2 focus:ring-[#205A46]/20 focus:border-[#205A46] transition-all"
+            className="w-full pl-9 pr-10 py-1.5 text-xs rounded-full bg-[#F5F3ED]/80 border border-[#E5E0D8] text-[#141F1A] placeholder-[#7D8D85] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#1E5A44]/20 focus:border-[#1E5A44] transition-all"
           />
-          <kbd className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[9px] font-mono text-[#929E99] bg-black/5 px-1.5 py-0.5 rounded border border-black/5">
+          <kbd className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[9px] font-mono text-[#7D8D85] bg-black/5 px-1.5 py-0.5 rounded border border-black/5">
             /
           </kbd>
         </div>
       </div>
 
-      {/* Right Controls: Clock, Active Jobs, Health */}
-      <div className="flex items-center space-x-4">
-        {/* Clock in IST */}
-        <div className="hidden sm:flex items-center space-x-1.5 text-xs text-[#68756F] tabular-nums font-medium bg-white/50 px-2.5 py-1 rounded-full border border-black/5">
-          <Clock className="w-3.5 h-3.5 text-[#205A46]" />
-          <span>{timeStr || '14:40:00 IST'}</span>
-        </div>
-
+      {/* Right Controls: Active Jobs, Health, Notifications & Profile */}
+      <div className="flex items-center space-x-3">
         {/* Solver Jobs Activity Trigger */}
         {activeJobsCount > 0 && (
-          <div className="flex items-center space-x-1 px-2.5 py-1 bg-[#EFF4FF] border border-[#C7D7FE] rounded-full text-xs text-[#2F5BEA] font-semibold animate-pulse">
+          <div className="flex items-center space-x-1 px-3 py-1 bg-[#EFF4FF] border border-[#C7D7FE] rounded-full text-xs text-[#2563EB] font-semibold animate-pulse">
             <Sparkles className="w-3.5 h-3.5" />
             <span>{activeJobsCount} Active Job</span>
           </div>
@@ -112,12 +117,23 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Notification Bell */}
         <button
-          className="relative glass-pill p-2 rounded-full text-[#15211D] hover:bg-white transition-all cursor-pointer"
+          className="relative w-8 h-8 rounded-full bg-[#F5F3ED] hover:bg-black/5 border border-[#E5E0D8] flex items-center justify-center text-[#141F1A] transition-all cursor-pointer"
           title="Audit Notifications"
         >
-          <Bell className="w-4 h-4 text-[#15211D]" />
-          <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#C6534C]" />
+          <Bell className="w-3.5 h-3.5 text-[#141F1A]" />
+          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#DC2626]" />
         </button>
+
+        {/* Dispatcher Profile (Atlas Logist Style) */}
+        <div className="hidden sm:flex items-center space-x-2 pl-2 border-l border-black/5">
+          <div className="w-8 h-8 rounded-full bg-[#1E5A44] text-[#A8DBC9] font-bold text-xs flex items-center justify-center border border-[#141F1A]/10 shadow-xs">
+            AR
+          </div>
+          <div className="leading-tight hidden xl:block">
+            <div className="font-bold text-xs text-[#141F1A]">Aditya R.</div>
+            <div className="text-[10px] text-[#7D8D85] font-medium">Lead Dispatcher</div>
+          </div>
+        </div>
       </div>
     </header>
   );

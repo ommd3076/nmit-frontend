@@ -65,19 +65,16 @@ export const ActivityView: React.FC<ActivityViewProps> = ({ events, onRefresh })
   return (
     <div className="flex-1 flex flex-col overflow-y-auto p-6 gap-6 select-none text-xs">
       {/* Top Header Card */}
-      <div className="glass-panel-strong rounded-3xl p-5 border border-white/80 shadow-lg">
-        <div className="flex flex-wrap items-center justify-between pb-3 border-b border-black/5 gap-4">
+      <div className="bg-white rounded-3xl p-6 border border-[#EAE6DF] shadow-xs">
+        <div className="flex flex-wrap items-center justify-between pb-4 border-b border-[#EAE6DF] gap-4">
           <div>
-            <div className="text-[10px] uppercase font-mono tracking-wider text-[#77736D]">
-              06 · DETERMINISTIC DISPATCH AUDIT LOG
-            </div>
-            <div className="flex items-center space-x-2 mt-0.5">
-              <Activity className="w-5 h-5 text-[#205A46]" />
-              <h2 className="text-lg font-extrabold text-[#15211D] tracking-tight">
+            <div className="flex items-center space-x-2">
+              <Activity className="w-5 h-5 text-[#1E5A44]" />
+              <h2 className="text-xl font-extrabold text-[#141F1A] tracking-tight">
                 Operational Event Stream & Audit Trail
               </h2>
             </div>
-            <p className="text-xs text-[#68756F] mt-1">
+            <p className="text-xs text-[#7D8D85] mt-1">
               Deterministic dispatch transitions, driver telemetry arrivals, and recovery events
             </p>
           </div>
@@ -85,20 +82,20 @@ export const ActivityView: React.FC<ActivityViewProps> = ({ events, onRefresh })
           {/* Search & Refresh */}
           <div className="flex items-center space-x-3">
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-[#68756F] absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-[#7D8D85] absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Search audit trail…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 pr-3 py-1.5 text-xs bg-white/90 border border-black/5 rounded-xl text-[#15211D] focus:outline-none"
+                className="pl-9 pr-3.5 py-1.5 text-xs bg-[#F5F3ED]/80 border border-[#E5E0D8] rounded-full text-[#141F1A] placeholder-[#7D8D85] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#1E5A44]/20 focus:border-[#1E5A44]"
               />
             </div>
 
             {onRefresh && (
               <button
                 onClick={onRefresh}
-                className="p-2 rounded-xl bg-white/80 hover:bg-white border border-black/5 text-[#15211D] transition-colors cursor-pointer"
+                className="p-2 rounded-full bg-[#F5F3ED] hover:bg-black/5 border border-[#E5E0D8] text-[#141F1A] transition-all cursor-pointer"
                 title="Refresh Events"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
@@ -107,7 +104,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({ events, onRefresh })
           </div>
         </div>
 
-        {/* Category Pills */}
+        {/* Category Pills (Atlas Style) */}
         <div className="flex items-center space-x-2 mt-4 overflow-x-auto pb-1">
           {[
             { id: 'all', label: 'All Events' },
@@ -120,10 +117,10 @@ export const ActivityView: React.FC<ActivityViewProps> = ({ events, onRefresh })
             <button
               key={cat.id}
               onClick={() => setFilterCategory(cat.id)}
-              className={`px-3 py-1.5 rounded-full font-medium transition-all cursor-pointer whitespace-nowrap text-[11px] ${
+              className={`px-3.5 py-1 rounded-full font-semibold transition-all cursor-pointer whitespace-nowrap text-[11px] ${
                 filterCategory === cat.id
-                  ? 'bg-[#17231F] text-white shadow-xs'
-                  : 'bg-white/70 hover:bg-white text-[#68756F] border border-black/5'
+                  ? 'bg-[#141F1A] text-white shadow-xs'
+                  : 'bg-[#F5F3ED] hover:bg-black/5 text-[#4D5C54] border border-[#E5E0D8]'
               }`}
             >
               {cat.label}
@@ -133,11 +130,11 @@ export const ActivityView: React.FC<ActivityViewProps> = ({ events, onRefresh })
       </div>
 
       {/* Events Stream Feed */}
-      <div className="glass-panel-strong rounded-3xl p-5 border border-white/80 shadow-lg space-y-3">
+      <div className="bg-white rounded-3xl p-6 border border-[#EAE6DF] shadow-xs space-y-3">
         {filteredEvents.length === 0 ? (
-          <div className="text-center py-12 text-[#68756F] space-y-2">
-            <Activity className="w-8 h-8 text-[#929E99] mx-auto" />
-            <div className="font-bold text-sm text-[#15211D]">No operational events match this filter</div>
+          <div className="text-center py-12 text-[#7D8D85] space-y-2">
+            <Activity className="w-8 h-8 text-[#A8DBC9] mx-auto" />
+            <div className="font-bold text-sm text-[#141F1A]">No operational events match this filter</div>
             <p className="text-[11px]">Clear search or switch category filter to inspect logs.</p>
           </div>
         ) : (

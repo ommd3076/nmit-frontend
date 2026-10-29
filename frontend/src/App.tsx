@@ -123,21 +123,21 @@ export default function App() {
   const runningJobsCount = jobs.filter((j) => j.status === 'running' || j.status === 'queued').length;
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#F6F8F5] text-[#15211D] font-sans antialiased overflow-hidden">
+    <div className="flex flex-col h-screen w-screen bg-[#F5F3ED] text-[#141F1A] font-sans antialiased overflow-hidden">
       {/* Global Toast Notification */}
       {notification && (
-        <div className="fixed top-18 right-6 z-50 glass-panel-strong px-4 py-3 rounded-2xl shadow-xl border border-white flex items-center space-x-3 text-xs animate-in slide-in-from-top-2 duration-200">
+        <div className="fixed top-18 right-6 z-50 glass-panel-strong px-4 py-3 rounded-2xl shadow-xl border border-black/5 flex items-center space-x-3 text-xs animate-in slide-in-from-top-2 duration-200">
           {notification.type === 'success' ? (
-            <CheckCircle2 className="w-4 h-4 text-[#205A46] shrink-0" />
+            <CheckCircle2 className="w-4 h-4 text-[#1E5A44] shrink-0" />
           ) : (
-            <AlertTriangle className="w-4 h-4 text-[#D78A45] shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-[#D97706] shrink-0" />
           )}
-          <span className="font-semibold text-[#15211D] max-w-sm">
+          <span className="font-semibold text-[#141F1A] max-w-sm">
             {notification.message}
           </span>
           <button
             onClick={() => setNotification(null)}
-            className="p-1 rounded-lg hover:bg-black/5 text-[#68756F]"
+            className="p-1 rounded-lg hover:bg-black/5 text-[#7D8D85]"
           >
             <X className="w-3.5 h-3.5" />
           </button>
