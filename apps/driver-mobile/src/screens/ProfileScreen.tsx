@@ -9,11 +9,38 @@ import {
   SafeAreaView
 } from 'react-native';
 import { DataBadge } from '../components/DataBadge';
+import { SimulatedActionNotice } from '../components/SimulatedActionNotice';
 import { DRIVER_PROFILE } from '../data/mockDriverData';
 
 export const ProfileScreen: React.FC = () => {
   const [offlineSync, setOfflineSync] = useState<boolean>(true);
   const [hapticFeedback, setHapticFeedback] = useState<boolean>(true);
+  const [actionNotice, setActionNotice] = useState<{ action: string; detail: string } | null>(null);
+
+  const handleToggleOfflineSync = (val: boolean) => {
+    setOfflineSync(val);
+    setActionNotice({
+      action: `Offline Manifest Cache ${val ? 'Enabled' : 'Disabled'}`,
+      detail: `Stop waypoints and consignment payloads ${
+        val ? 'cached in device local memory' : 'purged from local storage'
+      }. Local preview configuration only.`
+    });
+  };
+
+  const handleToggleHaptics = (val: boolean) => {
+    setHapticFeedback(val);
+    setActionNotice({
+      action: `Tactile Feedback ${val ? 'Enabled' : 'Disabled'}`,
+      detail: `Corridor alert vibration threshold set to ${val ? 'Active' : 'Off'}. No sensor permission required.`
+    });
+  };
+
+  const handleCallDispatch = () => {
+    setActionNotice({
+      action: 'Contacting Central Dispatch Desk',
+      detail: 'Simulated telephony trigger to Bangalore Hub Operations (+91 80 4910 8800). No native cellular permission requested.'
+    });
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -27,7 +54,16 @@ export const ProfileScreen: React.FC = () => {
           <DataBadge label="Preview" tone="preview" />
         </View>
 
-        {/* Profile Identity Card */}
+        {/* Global Action Feedback Notice */}
+        {actionNotice && (
+          <SimulatedActionNotice
+            actionName={actionNotice.action}
+            detail={actionNotice.detail}
+            onDismiss={() => setActionNotice(null)}
+          />
+        )}
+
+        {/* Profile Identity Card (Vanta Ride Spacing) */}
         <View style={styles.profileCard}>
           <View style={styles.avatarRow}>
             <View style={styles.avatar}>
@@ -35,10 +71,20 @@ export const ProfileScreen: React.FC = () => {
             </View>
             <View style={styles.profileInfo}>
               <Text style={styles.driverName}>{DRIVER_PROFILE.name}</Text>
-              <Text style={styles.driverId}>{DRIVER_PROFILE.driverId} · Rating {DRIVER_PROFILE.rating} ★</Text>
+              <Text style={styles.driverId}>{DRIVER_PROFILE.driverId} · {DRIVER_PROFILE.rating} ★ ({DRIVER_PROFILE.completedTrips} trips)</Text>
               <Text style={styles.driverPhone}>{DRIVER_PROFILE.phone}</Text>
             </View>
           </View>
+
+          {/* Quick Contact Dispatch CTA */}
+          <TouchableOpacity
+            style={styles.dispatchCallBtn}
+            onPress={handleCallDispatch}
+            activeOpacity={0.7}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Text style={styles.dispatchCallBtnText}>Call Central Dispatch Desk (Simulated)</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Assigned Vehicle Dossier */}
@@ -54,7 +100,7 @@ export const ProfileScreen: React.FC = () => {
             <Text style={styles.rowValue}>{DRIVER_PROFILE.vehicleModel}</Text>
           </View>
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>Registration</Text>
+            <Text style={styles.rowLabel}>Registration Number</Text>
             <Text style={styles.rowValueMono}>{DRIVER_PROFILE.licenseNumber}</Text>
           </View>
           <View style={styles.row}>
@@ -65,17 +111,22 @@ export const ProfileScreen: React.FC = () => {
             <Text style={styles.rowLabel}>Battery State of Charge</Text>
             <Text style={[styles.rowValueBold, { color: '#205A46' }]}>{DRIVER_PROFILE.batteryPct}% Nominal</Text>
           </View>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Shift Allocation</Text>
+            <Text style={styles.rowValue}>{DRIVER_PROFILE.shiftId} ({DRIVER_PROFILE.shiftHours})</Text>
+          </View>
         </View>
 
-        {/* Honest System Governance Notice */}
+        {/* Honest System Governance Notice (AGENTS.md §7 & §8) */}
         <View style={styles.noticeCard}>
-          <Text style={styles.noticeHeading}>HONEST DATA STATES · AGENTS.md §7</Text>
+          <Text style={styles.noticeHeading}>HONEST DATA STATES · AGENTS.md §7 & §8</Text>
           <Text style={styles.noticeBody}>
-            Driver endpoints do not exist in current backend: driver screens operate in Preview mode with local fixtures. No device permissions (GPS, camera, notifications) are requested.
+            Driver endpoints do not exist in the current backend: all driver screens are Preview using local fixtures. No device permissions (GPS, camera, authentication, push notifications) are requested.
           </Text>
           <View style={styles.noticePills}>
             <Text style={styles.noticePill}>₹83/$ assumed rate</Text>
             <Text style={styles.noticePill}>Simulated ETAs</Text>
+            <Text style={styles.noticePill}>No speed-up claimed</Text>
           </View>
         </View>
 
@@ -84,25 +135,25 @@ export const ProfileScreen: React.FC = () => {
           <Text style={styles.sectionHeading}>Terminal Configuration</Text>
 
           <View style={styles.switchRow}>
-            <View>
+            <View style={styles.switchTextWrap}>
               <Text style={styles.switchTitle}>Offline Manifest Cache</Text>
-              <Text style={styles.switchSubtitle}>Local storage of stop waypoints</Text>
+              <Text style={styles.switchSubtitle}>Local storage of stop waypoints and consignment payloads</Text>
             </View>
             <Switch
               value={offlineSync}
-              onValueChange={setOfflineSync}
+              onValueChange={handleToggleOfflineSync}
               trackColor={{ false: '#EEF2ED', true: '#205A46' }}
             />
           </View>
 
           <View style={styles.switchRow}>
-            <View>
+            <View style={styles.switchTextWrap}>
               <Text style={styles.switchTitle}>Haptic Feedback</Text>
-              <Text style={styles.switchSubtitle}>Vibrate on stop approach</Text>
+              <Text style={styles.switchSubtitle}>Tactile impulse on corridor delay alert trigger</Text>
             </View>
             <Switch
               value={hapticFeedback}
-              onValueChange={setHapticFeedback}
+              onValueChange={handleToggleHaptics}
               trackColor={{ false: '#EEF2ED', true: '#205A46' }}
             />
           </View>
@@ -110,8 +161,8 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Version Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>arQ Driver HUD · v1.4.0 (Expo Android Native)</Text>
-          <Text style={styles.footerText}>QML-01 Dispatch Logistics OS · Bangalore</Text>
+          <Text style={styles.footerText}>arQ Driver HUD Preview · v1.4.0 (Expo Android Native)</Text>
+          <Text style={styles.footerText}>QML-01 Dispatch Logistics OS · Bangalore Hub</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -125,13 +176,13 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 80,
+    paddingBottom: 90,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   eyebrow: {
     fontSize: 10,
@@ -191,6 +242,20 @@ const styles = StyleSheet.create({
     color: '#205A46',
     marginTop: 2,
   },
+  dispatchCallBtn: {
+    marginTop: 14,
+    backgroundColor: '#F4F6F4',
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(21, 33, 29, 0.08)',
+  },
+  dispatchCallBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15211D',
+  },
   sectionCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
@@ -213,21 +278,21 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(21, 33, 29, 0.04)',
   },
   rowLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#55534F',
   },
   rowValue: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#15211D',
     fontWeight: '600',
   },
   rowValueBold: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#15211D',
     fontWeight: '800',
   },
   rowValueMono: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: 'monospace',
     color: '#15211D',
   },
@@ -242,7 +307,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   noticeHeading: {
-    fontSize: 9,
+    fontSize: 10,
     fontFamily: 'monospace',
     fontWeight: '800',
     color: '#205A46',
@@ -255,15 +320,16 @@ const styles = StyleSheet.create({
   },
   noticePills: {
     flexDirection: 'row',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 6,
     marginTop: 8,
   },
   noticePill: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
-    color: '#77736D',
+    color: '#4A5565',
     backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    paddingHorizontal: 6,
+    paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 4,
   },
@@ -274,6 +340,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(21, 33, 29, 0.04)',
+  },
+  switchTextWrap: {
+    flex: 1,
+    marginRight: 10,
   },
   switchTitle: {
     fontSize: 12,

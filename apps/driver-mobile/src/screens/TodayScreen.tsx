@@ -8,82 +8,156 @@ import {
   SafeAreaView
 } from 'react-native';
 import { DataBadge } from '../components/DataBadge';
-import { DRIVER_PROFILE, DRIVER_STOPS, DriverStop } from '../data/mockDriverData';
+import { SimulatedActionNotice } from '../components/SimulatedActionNotice';
+import {
+  DRIVER_PROFILE,
+  SHIFT_DATES,
+  SHIFT_SCHEDULES,
+  DriverStop
+} from '../data/mockDriverData';
 
 interface TodayScreenProps {
+  stops: DriverStop[];
+  onToggleComplete: (stop: DriverStop) => void;
   onNavigateToLiveRoute: (stop: DriverStop) => void;
+  selectedDate: string;
+  onSelectDate: (date: string) => void;
+  shiftActive: boolean;
+  onToggleShift: () => void;
 }
 
-export const TodayScreen: React.FC<TodayScreenProps> = ({ onNavigateToLiveRoute }) => {
-  const [selectedDate, setSelectedDate] = useState<string>('29 Oct');
-  const [stops, setStops] = useState<DriverStop[]>(DRIVER_STOPS);
-  const [shiftActive, setShiftActive] = useState<boolean>(true);
+export const TodayScreen: React.FC<TodayScreenProps> = ({
+  stops,
+  onToggleComplete,
+  onNavigateToLiveRoute,
+  selectedDate,
+  onSelectDate,
+  shiftActive,
+  onToggleShift,
+}) => {
+  const [actionNotice, setActionNotice] = useState<{ action: string; detail: string } | null>(null);
 
-  const dates = [
-    { day: 'Wed', date: '29 Oct', active: true },
-    { day: 'Thu', date: '30 Oct', active: false },
-    { day: 'Fri', date: '31 Oct', active: false },
-    { day: 'Sat', date: '01 Nov', active: false }
-  ];
+  const currentSchedule = SHIFT_SCHEDULES[selectedDate] || SHIFT_SCHEDULES['29 Oct'];
+  const displayStops = selectedDate === '29 Oct' ? stops : currentSchedule.stops;
+  const isToday = selectedDate === '29 Oct';
 
-  const handleToggleComplete = (stopId: string) => {
-    setStops(prev =>
-      prev.map(s => (s.id === stopId ? { ...s, status: s.status === 'completed' ? 'pending' : 'completed' } : s))
-    );
+  const completedCount = displayStops.filter(s => s.status === 'completed').length;
+  const progressPct = displayStops.length > 0 ? Math.round((completedCount / displayStops.length) * 100) : 0;
+
+  const handleContactAction = (type: 'call' | 'msg', stop: DriverStop) => {
+    if (type === 'call') {
+      setActionNotice({
+        action: `Contacting ${stop.contactName}`,
+        detail: `Simulated phone trigger to ${stop.contactPhone} (${stop.contactRole} at ${stop.customerName}). No cellular permission requested.`
+      });
+    } else {
+      setActionNotice({
+        action: `Dispatch Message Drafted for ${stop.customerName}`,
+        detail: `Delivery ETA notification queued for ${stop.contactName}. Local preview message channel only.`
+      });
+    }
   };
 
-  const completedCount = stops.filter(s => s.status === 'completed').length;
-  const progressPct = Math.round((completedCount / stops.length) * 100);
+  const handleCompletePress = (stop: DriverStop) => {
+    onToggleComplete(stop);
+    const isNowDone = stop.status !== 'completed';
+    setActionNotice({
+      action: isNowDone ? `Stop #${stop.sequence} Marked Complete` : `Stop #${stop.sequence} Re-opened`,
+      detail: `${stop.customerName} status updated to ${isNowDone ? 'completed' : 'pending'}. Local preview state updated.`
+    });
+  };
+
+  const handleShiftPress = () => {
+    onToggleShift();
+    setActionNotice({
+      action: !shiftActive ? 'Shift Resumed (Online)' : 'Shift Paused (Standby)',
+      detail: `Operator ${DRIVER_PROFILE.name} toggled shift state to ${
+        !shiftActive ? 'Active' : 'Standby'
+      }. Local preview telemetry updated.`
+    });
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Top Header & Source Badge */}
+        {/* Top Header & Sentence-Case Source Badge */}
         <View style={styles.header}>
           <View>
             <Text style={styles.eyebrow}>01 · DISPATCH MANIFEST</Text>
-            <Text style={styles.greeting}>Shift R-04 · {DRIVER_PROFILE.name}</Text>
+            <Text style={styles.greeting}>
+              {currentSchedule.shiftId} · {DRIVER_PROFILE.name}
+            </Text>
+            <Text style={styles.shiftHoursText}>{currentSchedule.shiftHours}</Text>
           </View>
-          <DataBadge label="Preview" tone="preview" />
+          <DataBadge
+            label={isToday ? 'Preview' : 'Preview · Upcoming'}
+            tone="preview"
+          />
         </View>
 
-        {/* Date Selector Carousel (Vanta Ride Style) */}
-        <View style={styles.dateCarousel}>
-          {dates.map(d => {
+        {/* Global Action Feedback Notice (Surfaced on Unsent Actions) */}
+        {actionNotice && (
+          <SimulatedActionNotice
+            actionName={actionNotice.action}
+            detail={actionNotice.detail}
+            onDismiss={() => setActionNotice(null)}
+          />
+        )}
+
+        {/* Date Selector Carousel (Vanta Ride Style Horizontal Strip) */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.dateCarousel}
+        >
+          {SHIFT_DATES.map(d => {
             const isSelected = selectedDate === d.date;
             return (
               <TouchableOpacity
                 key={d.date}
                 style={[styles.dateCard, isSelected && styles.dateCardActive]}
-                onPress={() => setSelectedDate(d.date)}
+                onPress={() => onSelectDate(d.date)}
                 activeOpacity={0.7}
               >
                 <Text style={[styles.dateDay, isSelected && styles.dateDayActive]}>{d.day}</Text>
                 <Text style={[styles.dateNum, isSelected && styles.dateNumActive]}>{d.date.split(' ')[0]}</Text>
+                <Text style={[styles.dateSub, isSelected && styles.dateSubActive]}>{d.stops} stops</Text>
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
 
-        {/* Daily Summary & Earnings Card (Atlas / Tactical HUD Style) */}
+        {/* Daily Summary & Earnings Card (Vanta Ride Clean Spacing & HUD Telemetry) */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryTop}>
             <View>
-              <Text style={styles.summaryLabel}>TODAY'S SHIFT PAY</Text>
-              <Text style={styles.summaryAmount}>₹{DRIVER_PROFILE.todayEarningsInr.toLocaleString('en-IN')}</Text>
+              <Text style={styles.summaryLabel}>
+                {isToday ? "TODAY'S ESTIMATED EARNINGS" : 'SCHEDULED SHIFT PAY'}
+              </Text>
+              <Text style={styles.summaryAmount}>
+                ₹{currentSchedule.earningsInr.toLocaleString('en-IN')}
+              </Text>
               <Text style={styles.assumedRate}>{DRIVER_PROFILE.assumedRateLabel}</Text>
             </View>
-            <View style={styles.shiftBadge}>
+
+            {/* Interactive Shift Toggle */}
+            <TouchableOpacity
+              style={[styles.shiftBadge, shiftActive ? styles.shiftBadgeActive : styles.shiftBadgeStandby]}
+              onPress={handleShiftPress}
+              activeOpacity={0.8}
+            >
               <View style={[styles.statusDot, { backgroundColor: shiftActive ? '#205A46' : '#77736D' }]} />
-              <Text style={styles.shiftBadgeText}>{shiftActive ? 'SHIFT ACTIVE' : 'STANDBY'}</Text>
-            </View>
+              <Text style={[styles.shiftBadgeText, shiftActive ? styles.shiftBadgeTextActive : styles.shiftBadgeTextStandby]}>
+                {shiftActive ? 'SHIFT ACTIVE' : 'STANDBY'}
+              </Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Progress Bar */}
+          {/* Stop Delivery Progress Bar */}
           <View style={styles.progressContainer}>
             <View style={styles.progressLabels}>
               <Text style={styles.progressText}>Stop Delivery Progress</Text>
-              <Text style={styles.progressPctText}>{completedCount}/{stops.length} ({progressPct}%)</Text>
+              <Text style={styles.progressPctText}>{completedCount}/{displayStops.length} ({progressPct}%)</Text>
             </View>
             <View style={styles.progressBarTrack}>
               <View style={[styles.progressBarFill, { width: `${progressPct}%` }]} />
@@ -92,78 +166,202 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({ onNavigateToLiveRoute 
 
           {/* Vehicle Telemetry Strip */}
           <View style={styles.vehicleStrip}>
-            <Text style={styles.vehicleInfoText}>Unit {DRIVER_PROFILE.vehicleCallsign} · {DRIVER_PROFILE.vehicleModel}</Text>
-            <Text style={styles.batteryText}>{DRIVER_PROFILE.batteryPct}% SoC</Text>
+            <View>
+              <Text style={styles.vehicleInfoText}>Unit {DRIVER_PROFILE.vehicleCallsign} · {DRIVER_PROFILE.vehicleModel}</Text>
+              <Text style={styles.vehicleSubText}>Payload: {DRIVER_PROFILE.currentPayloadKg}/{DRIVER_PROFILE.maxPayloadKg} kg</Text>
+            </View>
+            <View style={styles.telemetryRight}>
+              <Text style={styles.batteryText}>{DRIVER_PROFILE.batteryPct}% SoC</Text>
+              <Text style={styles.speedText}>{DRIVER_PROFILE.speedKmh} km/h</Text>
+            </View>
           </View>
         </View>
 
-        {/* Ordered Stops Section Header */}
+        {/* Section Header */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Assigned Stops ({stops.length})</Text>
-          <Text style={styles.sectionSub}>Select stop to preview corridor navigation</Text>
+          <View>
+            <Text style={styles.sectionTitle}>
+              Stop Sequence & Timeline ({displayStops.length})
+            </Text>
+            <Text style={styles.sectionSub}>Select stop to enter tactical corridor navigation</Text>
+          </View>
+          <DataBadge label="Simulated · held-out run" tone="preview" />
         </View>
 
-        {/* Vertical Stop Itinerary Cards (Vanta Ride & Fieldnotes Style) */}
-        <View style={styles.stopList}>
-          {stops.map(stop => {
+        {/* Vertical Stop Itinerary Cards with Dotted Route Timeline (Vanta Ride & Tipax Style) */}
+        <View style={styles.timelineContainer}>
+          {displayStops.map((stop, index) => {
             const isCompleted = stop.status === 'completed';
+            const isInTransit = stop.status === 'in_transit';
             const isAtRisk = stop.status === 'at_risk';
+            const isLast = index === displayStops.length - 1;
 
             return (
-              <View key={stop.id} style={[styles.stopCard, isCompleted && styles.stopCardCompleted]}>
-                <View style={styles.stopHeader}>
-                  <View style={styles.stopSequenceRow}>
-                    <View style={[styles.stopBadge, isCompleted && styles.stopBadgeDone, isAtRisk && styles.stopBadgeRisk]}>
-                      <Text style={styles.stopBadgeText}>{stop.isLocked ? 'L' : stop.sequence}</Text>
-                    </View>
-                    <View style={styles.stopTitleWrap}>
-                      <Text style={[styles.stopCustomerName, isCompleted && styles.textMuted]}>
-                        {stop.customerName}
+              <View key={stop.id} style={styles.timelineRow}>
+                {/* Left Vertical Dotted Timeline Rail (Ref 3 Vanta Ride) */}
+                <View style={styles.timelineRail}>
+                  <View
+                    style={[
+                      styles.timelineNode,
+                      isCompleted && styles.timelineNodeDone,
+                      isInTransit && styles.timelineNodeTransit,
+                      isAtRisk && styles.timelineNodeRisk
+                    ]}
+                  >
+                    {isCompleted ? (
+                      <Text style={styles.timelineNodeDoneText}>✓</Text>
+                    ) : (
+                      <Text style={[styles.timelineNodeText, isInTransit && styles.timelineNodeTransitText]}>
+                        {stop.sequence}
                       </Text>
-                      <Text style={styles.stopAddress}>{stop.address}</Text>
+                    )}
+                  </View>
+
+                  {!isLast && (
+                    <View style={styles.verticalDottedLineContainer}>
+                      <View style={[styles.verticalDottedDash, isCompleted && styles.verticalDottedDashDone]} />
+                      <View style={[styles.verticalDottedDash, isCompleted && styles.verticalDottedDashDone]} />
+                      <View style={[styles.verticalDottedDash, isCompleted && styles.verticalDottedDashDone]} />
+                      <View style={[styles.verticalDottedDash, isCompleted && styles.verticalDottedDashDone]} />
+                      <View style={[styles.verticalDottedDash, isCompleted && styles.verticalDottedDashDone]} />
+                    </View>
+                  )}
+                </View>
+
+                {/* Right Stop Itinerary Card */}
+                <View style={[styles.stopCard, isCompleted && styles.stopCardCompleted]}>
+                  {/* Card Header: Stop Sequence, Locked Prefix Badge & Status Pill */}
+                  <View style={styles.stopCardHeader}>
+                    <View style={styles.cardHeaderLeft}>
+                      <View style={styles.stopSeqBadge}>
+                        <Text style={styles.stopSeqBadgeText}>STOP #{stop.sequence}</Text>
+                      </View>
+                      {stop.isLocked && (
+                        <View style={styles.lockedBadge}>
+                          <Text style={styles.lockedBadgeText}>🔒 Locked Prefix</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <View
+                      style={[
+                        styles.statusPill,
+                        isCompleted && styles.pillSuccess,
+                        isInTransit && styles.pillTransit,
+                        isAtRisk && styles.pillRisk
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusPillText,
+                          isCompleted && styles.pillTextSuccess,
+                          isInTransit && styles.pillTextTransit,
+                          isAtRisk && styles.pillTextRisk
+                        ]}
+                      >
+                        {stop.status.replace('_', ' ').toUpperCase()}
+                      </Text>
                     </View>
                   </View>
 
-                  <View style={[styles.statusPill, isCompleted && styles.pillSuccess, isAtRisk && styles.pillRisk]}>
-                    <Text style={[styles.statusPillText, isCompleted && styles.pillTextSuccess, isAtRisk && styles.pillTextRisk]}>
-                      {stop.status.replace('_', ' ').toUpperCase()}
+                  {/* Customer & Consignment Info (Ref 6 Tipax) */}
+                  <View style={styles.customerBlock}>
+                    <Text style={[styles.stopCustomerName, isCompleted && styles.textMuted]}>
+                      {stop.customerName}
                     </Text>
+                    <Text style={styles.stopConsignee}>{stop.consignee}</Text>
+                    <Text style={styles.stopAddress}>{stop.address}</Text>
                   </View>
-                </View>
 
-                {/* Timing & Demand */}
-                <View style={styles.stopDetailsRow}>
-                  <Text style={styles.stopDetailItem}>Window: {stop.windowStart} – {stop.windowEnd}</Text>
-                  <Text style={styles.stopDetailItem}>Demand: {stop.demandKg} kg</Text>
-                  <Text style={styles.stopDetailItem}>ETA: {stop.eta}</Text>
-                </View>
-
-                {/* Delay Warning Note if at-risk */}
-                {stop.notes && (
-                  <View style={styles.warningNote}>
-                    <Text style={styles.warningNoteText}>Advisory: {stop.notes}</Text>
+                  {/* Shipment Identification & Tracking Tag (Ref 6 Tipax) */}
+                  <View style={styles.shipmentMetaRow}>
+                    <View style={styles.metaTag}>
+                      <Text style={styles.metaTagMono}>{stop.trackingId}</Text>
+                    </View>
+                    <View style={styles.metaTag}>
+                      <Text style={styles.metaTagText}>{stop.packageCount} pkgs · {stop.demandKg} kg</Text>
+                    </View>
+                    <View style={styles.metaTag}>
+                      <Text style={styles.metaTagText}>{stop.specialHandling}</Text>
+                    </View>
                   </View>
-                )}
 
-                {/* Action Buttons */}
-                <View style={styles.actionRow}>
-                  <TouchableOpacity
-                    style={styles.navButton}
-                    onPress={() => onNavigateToLiveRoute(stop)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.navButtonText}>Start Navigation →</Text>
-                  </TouchableOpacity>
+                  {/* Timing & Delay Risk Metrics (Honest Data States §2) */}
+                  <View style={styles.metricsBox}>
+                    <View style={styles.metricItem}>
+                      <Text style={styles.metricLabel}>DELIVERY WINDOW</Text>
+                      <Text style={styles.metricValue}>{stop.windowStart} – {stop.windowEnd}</Text>
+                    </View>
 
-                  <TouchableOpacity
-                    style={[styles.checkButton, isCompleted && styles.checkButtonDone]}
-                    onPress={() => handleToggleComplete(stop.id)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.checkButtonText, isCompleted && styles.checkButtonTextDone]}>
-                      {isCompleted ? '✓ Done' : 'Complete'}
-                    </Text>
-                  </TouchableOpacity>
+                    <View style={styles.metricItem}>
+                      <Text style={styles.metricLabel}>SIMULATED ETA</Text>
+                      <Text style={styles.metricValue}>{stop.etaInterval}</Text>
+                    </View>
+
+                    <View style={styles.metricItem}>
+                      <Text style={styles.metricLabel}>P(LATE)</Text>
+                      <Text style={[styles.metricValue, isAtRisk && styles.textRisk]}>
+                        {stop.pLate}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Corridor Delay Alert if present */}
+                  {stop.corridorAdvisory && (
+                    <View style={[styles.advisoryBanner, isAtRisk && styles.advisoryBannerRisk]}>
+                      <Text style={[styles.advisoryText, isAtRisk && styles.advisoryTextRisk]}>
+                        {stop.corridorAdvisory}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Quick Contact Actions (Ref 6 Tipax) */}
+                  <View style={styles.contactRow}>
+                    <View style={styles.contactInfo}>
+                      <Text style={styles.contactName}>{stop.contactName}</Text>
+                      <Text style={styles.contactRole}>{stop.contactRole}</Text>
+                    </View>
+                    <View style={styles.contactActions}>
+                      <TouchableOpacity
+                        style={styles.contactBtn}
+                        onPress={() => handleContactAction('call', stop)}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={styles.contactBtnText}>Call</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.contactBtn}
+                        onPress={() => handleContactAction('msg', stop)}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={styles.contactBtnText}>Message</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Primary & Secondary Action Buttons */}
+                  <View style={styles.cardActionsRow}>
+                    <TouchableOpacity
+                      style={styles.navButton}
+                      onPress={() => onNavigateToLiveRoute(stop)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.navButtonText}>Corridor Navigation →</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.checkButton, isCompleted && styles.checkButtonDone]}
+                      onPress={() => handleCompletePress(stop)}
+                      activeOpacity={0.8}
+                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                    >
+                      <Text style={[styles.checkButtonText, isCompleted && styles.checkButtonTextDone]}>
+                        {isCompleted ? '✓ Done' : 'Complete'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             );
@@ -181,13 +379,13 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 80,
+    paddingBottom: 90,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   eyebrow: {
     fontSize: 10,
@@ -197,19 +395,27 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
   },
   greeting: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     color: '#15211D',
+    marginTop: 2,
+  },
+  shiftHoursText: {
+    fontSize: 11,
+    color: '#55534F',
+    fontWeight: '600',
     marginTop: 2,
   },
   dateCarousel: {
     flexDirection: 'row',
     gap: 8,
     marginBottom: 16,
+    paddingVertical: 2,
   },
   dateCard: {
-    flex: 1,
+    width: 80,
     paddingVertical: 10,
+    paddingHorizontal: 8,
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     borderWidth: 1,
@@ -237,6 +443,14 @@ const styles = StyleSheet.create({
   dateNumActive: {
     color: '#FFFFFF',
   },
+  dateSub: {
+    fontSize: 10,
+    color: '#929E99',
+    marginTop: 2,
+  },
+  dateSubActive: {
+    color: '#A8DBC9',
+  },
   summaryCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
@@ -245,10 +459,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(21, 33, 29, 0.08)',
     marginBottom: 20,
     shadowColor: '#101828',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
   },
   summaryTop: {
     flexDirection: 'row',
@@ -262,7 +475,7 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
   },
   summaryAmount: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '800',
     color: '#205A46',
     marginTop: 2,
@@ -276,20 +489,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: '#E2F4EE',
+    paddingVertical: 6,
     borderRadius: 999,
-    gap: 5,
+    borderWidth: 1,
+    gap: 6,
+  },
+  shiftBadgeActive: {
+    backgroundColor: '#E2F4EE',
+    borderColor: '#A8DBC9',
+  },
+  shiftBadgeStandby: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
   },
   statusDot: {
-    width: 6,
-    height: 6,
+    width: 7,
+    height: 7,
     borderRadius: 999,
   },
   shiftBadgeText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
+  },
+  shiftBadgeTextActive: {
     color: '#205A46',
+  },
+  shiftBadgeTextStandby: {
+    color: '#77736D',
   },
   progressContainer: {
     marginTop: 16,
@@ -327,34 +553,110 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(21, 33, 29, 0.06)',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
   vehicleInfoText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#15211D',
+  },
+  vehicleSubText: {
+    fontSize: 10,
+    color: '#77736D',
+    marginTop: 1,
+  },
+  telemetryRight: {
+    alignItems: 'flex-end',
   },
   batteryText: {
     fontSize: 11,
     fontWeight: '700',
     color: '#205A46',
   },
+  speedText: {
+    fontSize: 10,
+    color: '#77736D',
+    marginTop: 1,
+  },
   sectionHeader: {
-    marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: '#15211D',
   },
   sectionSub: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#77736D',
     marginTop: 1,
   },
-  stopList: {
-    gap: 12,
+  timelineContainer: {
+    paddingLeft: 2,
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  timelineRail: {
+    width: 32,
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  timelineNode: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#17231F',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  timelineNodeDone: {
+    backgroundColor: '#205A46',
+  },
+  timelineNodeTransit: {
+    backgroundColor: '#205A46',
+    borderWidth: 2,
+    borderColor: '#A8DBC9',
+  },
+  timelineNodeRisk: {
+    backgroundColor: '#C62828',
+  },
+  timelineNodeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  timelineNodeTransitText: {
+    color: '#FFFFFF',
+  },
+  timelineNodeDoneText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  verticalDottedLineContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'space-evenly',
+    paddingVertical: 6,
+  },
+  verticalDottedDash: {
+    width: 2,
+    height: 10,
+    backgroundColor: 'rgba(21, 33, 29, 0.2)',
+    borderRadius: 1,
+    marginVertical: 2,
+  },
+  verticalDottedDashDone: {
+    backgroundColor: '#A8DBC9',
   },
   stopCard: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 14,
@@ -362,116 +664,217 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(21, 33, 29, 0.08)',
   },
   stopCardCompleted: {
-    backgroundColor: '#FAFBF9',
+    backgroundColor: '#FAFAF9',
     borderColor: 'rgba(21, 33, 29, 0.04)',
-    opacity: 0.85,
+    opacity: 0.88,
   },
-  stopHeader: {
+  stopCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  stopSequenceRow: {
+  cardHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-    marginRight: 8,
+    gap: 6,
   },
-  stopBadge: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    backgroundColor: '#17231F',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
+  stopSeqBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 4,
   },
-  stopBadgeDone: {
-    backgroundColor: '#205A46',
-  },
-  stopBadgeRisk: {
-    backgroundColor: '#C6534C',
-  },
-  stopBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
+  stopSeqBadgeText: {
+    fontSize: 10,
+    fontFamily: 'monospace',
     fontWeight: '800',
+    color: '#4B5563',
   },
-  stopTitleWrap: {
-    flex: 1,
+  lockedBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
   },
-  stopCustomerName: {
-    fontSize: 13,
+  lockedBadgeText: {
+    fontSize: 10,
     fontWeight: '700',
-    color: '#15211D',
-  },
-  stopAddress: {
-    fontSize: 11,
-    color: '#77736D',
-    marginTop: 1,
-  },
-  textMuted: {
-    color: '#77736D',
+    color: '#1E40AF',
   },
   statusPill: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 6,
     backgroundColor: '#EEF2ED',
   },
   pillSuccess: {
     backgroundColor: '#E2F4EE',
   },
+  pillTransit: {
+    backgroundColor: '#E0F2FE',
+  },
   pillRisk: {
     backgroundColor: '#FBECEB',
   },
   statusPillText: {
-    fontSize: 9,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '800',
     color: '#4B5563',
   },
   pillTextSuccess: {
     color: '#205A46',
   },
+  pillTextTransit: {
+    color: '#0369A1',
+  },
   pillTextRisk: {
-    color: '#C6534C',
+    color: '#C62828',
   },
-  stopDetailsRow: {
+  customerBlock: {
+    marginBottom: 8,
+  },
+  stopCustomerName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#15211D',
+  },
+  stopConsignee: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#55534F',
+    marginTop: 1,
+  },
+  stopAddress: {
+    fontSize: 11,
+    color: '#77736D',
+    marginTop: 2,
+  },
+  textMuted: {
+    color: '#77736D',
+  },
+  shipmentMetaRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(21, 33, 29, 0.04)',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 10,
   },
-  stopDetailItem: {
+  metaTag: {
+    backgroundColor: '#F4F6F4',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  metaTagMono: {
+    fontSize: 10,
+    fontFamily: 'monospace',
+    color: '#205A46',
+    fontWeight: '700',
+  },
+  metaTagText: {
     fontSize: 10,
     fontWeight: '600',
     color: '#55534F',
   },
-  warningNote: {
-    marginTop: 8,
-    backgroundColor: '#FDF4EB',
+  metricsBox: {
+    backgroundColor: '#F9FAF9',
+    borderRadius: 10,
     padding: 8,
-    borderRadius: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(21, 33, 29, 0.04)',
+  },
+  metricItem: {
+    flex: 1,
+  },
+  metricLabel: {
+    fontSize: 10,
+    fontFamily: 'monospace',
+    color: '#77736D',
+    fontWeight: '700',
+  },
+  metricValue: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#15211D',
+    marginTop: 2,
+  },
+  textRisk: {
+    color: '#C62828',
+  },
+  advisoryBanner: {
+    backgroundColor: '#FDF4EB',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: '#FBD6B0',
+    marginBottom: 10,
   },
-  warningNoteText: {
+  advisoryBannerRisk: {
+    backgroundColor: '#FBECEB',
+    borderColor: '#F5C2C0',
+  },
+  advisoryText: {
     fontSize: 10,
-    color: '#9A5B00',
-    fontWeight: '600',
+    color: '#B26B00',
+    fontWeight: '700',
   },
-  actionRow: {
+  advisoryTextRisk: {
+    color: '#C62828',
+  },
+  contactRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(21, 33, 29, 0.05)',
+    marginBottom: 10,
+  },
+  contactInfo: {
+    flex: 1,
+  },
+  contactName: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15211D',
+  },
+  contactRole: {
+    fontSize: 10,
+    color: '#77736D',
+  },
+  contactActions: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  contactBtn: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(21, 33, 29, 0.15)',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  contactBtnText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#15211D',
+  },
+  cardActionsRow: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 12,
   },
   navButton: {
     flex: 1,
     backgroundColor: '#17231F',
     paddingVertical: 9,
-    borderRadius: 10,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -484,7 +887,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 9,
     backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(21, 33, 29, 0.15)',
     alignItems: 'center',

@@ -5,17 +5,87 @@ import { TodayScreen } from './src/screens/TodayScreen';
 import { LiveRouteScreen } from './src/screens/LiveRouteScreen';
 import { LoadsScreen } from './src/screens/LoadsScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
-import { DRIVER_STOPS, DriverStop } from './src/data/mockDriverData';
+import {
+  DRIVER_STOPS,
+  DOCK_CHECKLIST,
+  DriverStop,
+  DockChecklistItem
+} from './src/data/mockDriverData';
 
 type Tab = 'today' | 'live' | 'loads' | 'profile';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('today');
+  const [stops, setStops] = useState<DriverStop[]>(DRIVER_STOPS);
   const [currentNavStop, setCurrentNavStop] = useState<DriverStop>(DRIVER_STOPS[1]);
+  const [selectedDate, setSelectedDate] = useState<string>('29 Oct');
+  const [shiftActive, setShiftActive] = useState<boolean>(true);
+  const [checklist, setChecklist] = useState<DockChecklistItem[]>(DOCK_CHECKLIST);
 
   const handleNavigateToLiveRoute = (stop: DriverStop) => {
     setCurrentNavStop(stop);
     setActiveTab('live');
+  };
+
+  const handleToggleComplete = (stop: DriverStop) => {
+    const isNowDone = stop.status !== 'completed';
+    setStops(prev =>
+      prev.map(s =>
+        s.id === stop.id
+          ? { ...s, status: isNowDone ? 'completed' : 'pending' }
+          : s
+      )
+    );
+    if (currentNavStop.id === stop.id) {
+      setCurrentNavStop(prev => ({
+        ...prev,
+        status: isNowDone ? 'completed' : 'pending'
+      }));
+    }
+  };
+
+  const handleLiveStopCompleted = (completedStop: DriverStop) => {
+    setStops(prev => {
+      const updated = prev.map(s =>
+        s.id === completedStop.id ? { ...s, status: 'completed' as const } : s
+      );
+      // Auto-advance current navigation target to the next pending stop
+      const nextPending = updated.find(s => s.status !== 'completed');
+      if (nextPending) {
+        setCurrentNavStop(nextPending);
+      }
+      return updated;
+    });
+    setActiveTab('today');
+  };
+
+  const handleReportDelay = (stopId: string, reason: string, minutes: number) => {
+    setStops(prev =>
+      prev.map(s =>
+        s.id === stopId
+          ? {
+              ...s,
+              corridorAdvisory: `Reported by Driver: +${minutes} min (${reason})`,
+              pLate: `${Math.min(95, parseInt(s.pLate) + minutes * 2)}% (simulated)`,
+              status: 'at_risk' as const
+            }
+          : s
+      )
+    );
+    if (currentNavStop.id === stopId) {
+      setCurrentNavStop(prev => ({
+        ...prev,
+        corridorAdvisory: `Reported by Driver: +${minutes} min (${reason})`,
+        pLate: `${Math.min(95, parseInt(prev.pLate) + minutes * 2)}% (simulated)`,
+        status: 'at_risk'
+      }));
+    }
+  };
+
+  const handleToggleCheck = (id: string) => {
+    setChecklist(prev =>
+      prev.map(item => (item.id === id ? { ...item, checked: !item.checked } : item))
+    );
   };
 
   const isDarkTab = activeTab === 'live';
@@ -24,28 +94,49 @@ export default function App() {
     <View style={[styles.root, isDarkTab ? styles.rootDark : styles.rootLight]}>
       <StatusBar style={isDarkTab ? 'light' : 'dark'} />
 
-      {/* Screen Area */}
+      {/* Screen Container with Persistent Tab Views */}
       <View style={styles.screenContainer}>
-        {activeTab === 'today' && (
-          <TodayScreen onNavigateToLiveRoute={handleNavigateToLiveRoute} />
-        )}
-        {activeTab === 'live' && (
+        <View style={[styles.tabContent, activeTab === 'today' ? styles.tabContentVisible : styles.tabContentHidden]}>
+          <TodayScreen
+            stops={stops}
+            onToggleComplete={handleToggleComplete}
+            onNavigateToLiveRoute={handleNavigateToLiveRoute}
+            selectedDate={selectedDate}
+            onSelectDate={setSelectedDate}
+            shiftActive={shiftActive}
+            onToggleShift={() => setShiftActive(prev => !prev)}
+          />
+        </View>
+
+        <View style={[styles.tabContent, activeTab === 'live' ? styles.tabContentVisible : styles.tabContentHidden]}>
           <LiveRouteScreen
             activeStop={currentNavStop}
-            onStopCompleted={() => setActiveTab('today')}
+            allStops={stops}
+            onSelectStop={setCurrentNavStop}
+            onStopCompleted={handleLiveStopCompleted}
+            onReportDelay={handleReportDelay}
           />
-        )}
-        {activeTab === 'loads' && <LoadsScreen />}
-        {activeTab === 'profile' && <ProfileScreen />}
+        </View>
+
+        <View style={[styles.tabContent, activeTab === 'loads' ? styles.tabContentVisible : styles.tabContentHidden]}>
+          <LoadsScreen
+            checklist={checklist}
+            onToggleCheck={handleToggleCheck}
+          />
+        </View>
+
+        <View style={[styles.tabContent, activeTab === 'profile' ? styles.tabContentVisible : styles.tabContentHidden]}>
+          <ProfileScreen />
+        </View>
       </View>
 
-      {/* Custom Bottom Tab Bar */}
+      {/* Custom Bottom Tab Bar (Vanta Ride Spacing & High-Contrast Glyphs) */}
       <View style={[styles.tabBar, isDarkTab ? styles.tabBarDark : styles.tabBarLight]}>
         {[
-          { id: 'today', label: 'Today', icon: '📅' },
-          { id: 'live', label: 'Live route', icon: '🧭' },
-          { id: 'loads', label: 'Loads', icon: '📦' },
-          { id: 'profile', label: 'Profile', icon: '👤' },
+          { id: 'today', label: 'Today', glyph: '◫' },
+          { id: 'live', label: 'Live route', glyph: '◎' },
+          { id: 'loads', label: 'Loads', glyph: '▤' },
+          { id: 'profile', label: 'Profile', glyph: '○' },
         ].map(tab => {
           const isSelected = activeTab === tab.id;
           return (
@@ -57,8 +148,19 @@ export default function App() {
               ]}
               onPress={() => setActiveTab(tab.id as Tab)}
               activeOpacity={0.7}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isSelected }}
+              accessibilityLabel={tab.label}
             >
-              <Text style={styles.tabIcon}>{tab.icon}</Text>
+              <Text
+                style={[
+                  styles.tabGlyph,
+                  isDarkTab ? styles.tabGlyphDark : styles.tabGlyphLight,
+                  isSelected && (isDarkTab ? styles.tabGlyphActiveDark : styles.tabGlyphActiveLight),
+                ]}
+              >
+                {tab.glyph}
+              </Text>
               <Text
                 style={[
                   styles.tabLabel,
@@ -89,10 +191,19 @@ const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
   },
+  tabContent: {
+    flex: 1,
+  },
+  tabContentVisible: {
+    display: 'flex',
+  },
+  tabContentHidden: {
+    display: 'none',
+  },
   tabBar: {
     flexDirection: 'row',
     height: 64,
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
     paddingBottom: 8,
     borderTopWidth: 1,
     alignItems: 'center',
@@ -117,11 +228,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#E2F4EE',
   },
   tabItemActiveDark: {
-    backgroundColor: 'rgba(32, 90, 70, 0.35)',
+    backgroundColor: 'rgba(32, 90, 70, 0.4)',
   },
-  tabIcon: {
+  tabGlyph: {
     fontSize: 16,
     marginBottom: 2,
+    fontWeight: '800',
+  },
+  tabGlyphLight: {
+    color: '#77736D',
+  },
+  tabGlyphDark: {
+    color: '#929E99',
+  },
+  tabGlyphActiveLight: {
+    color: '#205A46',
+  },
+  tabGlyphActiveDark: {
+    color: '#A8DBC9',
   },
   tabLabel: {
     fontSize: 11,

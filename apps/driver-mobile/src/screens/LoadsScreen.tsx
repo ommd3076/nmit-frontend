@@ -8,15 +8,52 @@ import {
   SafeAreaView
 } from 'react-native';
 import { DataBadge } from '../components/DataBadge';
-import { DOCK_CHECKLIST, DockChecklistItem, DRIVER_PROFILE } from '../data/mockDriverData';
+import { SimulatedActionNotice } from '../components/SimulatedActionNotice';
+import {
+  DOCK_CHECKLIST,
+  DockChecklistItem,
+  DRIVER_PROFILE,
+  MANIFEST_CONSIGNMENTS
+} from '../data/mockDriverData';
 
-export const LoadsScreen: React.FC = () => {
-  const [checklist, setChecklist] = useState<DockChecklistItem[]>(DOCK_CHECKLIST);
+interface LoadsScreenProps {
+  checklist?: DockChecklistItem[];
+  onToggleCheck?: (id: string) => void;
+}
+
+export const LoadsScreen: React.FC<LoadsScreenProps> = ({
+  checklist: externalChecklist,
+  onToggleCheck: externalOnToggleCheck,
+}) => {
+  const [internalChecklist, setInternalChecklist] = useState<DockChecklistItem[]>(DOCK_CHECKLIST);
+  const [actionNotice, setActionNotice] = useState<{ action: string; detail: string } | null>(null);
+
+  const checklist = externalChecklist || internalChecklist;
 
   const toggleCheck = (id: string) => {
-    setChecklist(prev =>
-      prev.map(item => (item.id === id ? { ...item, checked: !item.checked } : item))
-    );
+    if (externalOnToggleCheck) {
+      externalOnToggleCheck(id);
+    } else {
+      setInternalChecklist(prev =>
+        prev.map(item => (item.id === id ? { ...item, checked: !item.checked } : item))
+      );
+    }
+
+    const item = checklist.find(i => i.id === id);
+    if (item) {
+      const nextVal = !item.checked;
+      setActionNotice({
+        action: `${item.title} — ${nextVal ? 'Passed' : 'Pending'}`,
+        detail: `Inspection item #${item.id} status updated in preview state. No telematics sync required.`
+      });
+    }
+  };
+
+  const handleGateClearance = () => {
+    setActionNotice({
+      action: 'Dock Gate Clearance Signed Off',
+      detail: 'Gate Pass #GP-2026-BLR-8921 cleared for Departure at Hub Gate 3. Recorded in local preview state.'
+    });
   };
 
   const checkedCount = checklist.filter(c => c.checked).length;
@@ -29,16 +66,25 @@ export const LoadsScreen: React.FC = () => {
         <View style={styles.header}>
           <View>
             <Text style={styles.eyebrow}>03 · LOAD MANIFEST & DOCK AUDIT</Text>
-            <Text style={styles.title}>Cargo & Dock Checklist</Text>
+            <Text style={styles.title}>Cargo Manifest & Dock Audit</Text>
           </View>
           <DataBadge label="Preview" tone="preview" />
         </View>
 
-        {/* Cargo Capacity Overview Card (Warehouse Ref 4) */}
+        {/* Global Action Feedback Notice */}
+        {actionNotice && (
+          <SimulatedActionNotice
+            actionName={actionNotice.action}
+            detail={actionNotice.detail}
+            onDismiss={() => setActionNotice(null)}
+          />
+        )}
+
+        {/* Cargo Capacity Overview Card (Ref 4 Maer Warehouse Distribution) */}
         <View style={styles.capacityCard}>
           <View style={styles.capacityHeader}>
             <View>
-              <Text style={styles.capacityLabel}>ACTIVE VAN PAYLOAD</Text>
+              <Text style={styles.capacityLabel}>ACTIVE VAN PAYLOAD CAPACITY</Text>
               <Text style={styles.capacityValue}>
                 {DRIVER_PROFILE.currentPayloadKg} / {DRIVER_PROFILE.maxPayloadKg} kg
               </Text>
@@ -52,22 +98,59 @@ export const LoadsScreen: React.FC = () => {
 
           {/* Segmented Cargo Type Bar */}
           <View style={styles.segmentContainer}>
-            <View style={[styles.segmentBar, { flex: 4, backgroundColor: '#205A46' }]} />
-            <View style={[styles.segmentBar, { flex: 3, backgroundColor: '#2F5BEA' }]} />
-            <View style={[styles.segmentBar, { flex: 2, backgroundColor: '#D78A45' }]} />
+            <View style={[styles.segmentBar, { flex: 43, backgroundColor: '#205A46' }]} />
+            <View style={[styles.segmentBar, { flex: 33, backgroundColor: '#2F5BEA' }]} />
+            <View style={[styles.segmentBar, { flex: 24, backgroundColor: '#D78A45' }]} />
           </View>
           <View style={styles.segmentLegend}>
-            <Text style={styles.legendText}>Pharma (180kg)</Text>
-            <Text style={styles.legendText}>· Perishables (140kg)</Text>
-            <Text style={styles.legendText}>· Electronics (100kg)</Text>
+            <Text style={styles.legendText}>■ Pharma (180kg / Cold 4°C)</Text>
+            <Text style={styles.legendText}>■ Perishables (140kg)</Text>
+            <Text style={styles.legendText}>■ Electronics (100kg)</Text>
           </View>
         </View>
 
-        {/* Dock Checklist Section */}
+        {/* Active Consignment Manifest List (Ref 6 Tipax) */}
         <View style={styles.sectionHeader}>
           <View>
+            <Text style={styles.sectionTitle}>Manifest Consignments ({MANIFEST_CONSIGNMENTS.length})</Text>
+            <Text style={styles.sectionSub}>Loaded cargo units assigned to Shift R-04</Text>
+          </View>
+          <Text style={styles.consignmentsTotalWeight}>Total: 420 kg</Text>
+        </View>
+
+        <View style={styles.manifestList}>
+          {MANIFEST_CONSIGNMENTS.map(item => (
+            <View key={item.trackingId} style={styles.manifestCard}>
+              <View style={styles.manifestTop}>
+                <View style={styles.manifestIdBadge}>
+                  <Text style={styles.manifestIdText}>{item.trackingId}</Text>
+                </View>
+                <Text style={styles.manifestStopNum}>Stop #{item.stopSequence}</Text>
+              </View>
+
+              <Text style={styles.manifestCustName}>{item.customerName}</Text>
+
+              <View style={styles.manifestMetaRow}>
+                <Text style={styles.manifestMetaText}>{item.packages} packages · {item.weightKg} kg</Text>
+                <Text style={styles.manifestMetaText}>· {item.category}</Text>
+                {item.tempControlled && (
+                  <Text style={styles.manifestColdText}>· Cold-chain</Text>
+                )}
+              </View>
+
+              <View style={styles.sealRow}>
+                <Text style={styles.sealLabel}>Tamper Seal:</Text>
+                <Text style={styles.sealValue}>{item.sealNumber}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* Dock Departure Checklist Section (Skills/driver-android-expo §9) */}
+        <View style={[styles.sectionHeader, { marginTop: 22 }]}>
+          <View>
             <Text style={styles.sectionTitle}>Dock Departure Checklist</Text>
-            <Text style={styles.sectionSub}>Verify all 5 inspection points before hub departure</Text>
+            <Text style={styles.sectionSub}>Verify all 5 safety & cargo points before dispatch</Text>
           </View>
           <Text style={[styles.checkCounter, isAllChecked && styles.checkCounterDone]}>
             {checkedCount}/{checklist.length} Passed
@@ -81,15 +164,21 @@ export const LoadsScreen: React.FC = () => {
               style={[styles.checkItem, item.checked && styles.checkItemChecked]}
               onPress={() => toggleCheck(item.id)}
               activeOpacity={0.7}
+              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
             >
               <View style={[styles.checkbox, item.checked && styles.checkboxChecked]}>
                 {item.checked && <Text style={styles.checkTick}>✓</Text>}
               </View>
 
               <View style={styles.itemTextWrap}>
-                <Text style={[styles.itemTitle, item.checked && styles.itemTitleChecked]}>
-                  {item.title}
-                </Text>
+                <View style={styles.itemTitleRow}>
+                  <Text style={[styles.itemTitle, item.checked && styles.itemTitleChecked]}>
+                    {item.title}
+                  </Text>
+                  <View style={styles.categoryPill}>
+                    <Text style={styles.categoryPillText}>{item.category.toUpperCase()}</Text>
+                  </View>
+                </View>
                 <Text style={styles.itemDescription}>{item.description}</Text>
               </View>
             </TouchableOpacity>
@@ -100,10 +189,11 @@ export const LoadsScreen: React.FC = () => {
         <TouchableOpacity
           style={[styles.signoffBtn, !isAllChecked && styles.signoffBtnDisabled]}
           disabled={!isAllChecked}
+          onPress={handleGateClearance}
           activeOpacity={0.8}
         >
           <Text style={styles.signoffBtnText}>
-            {isAllChecked ? '✓ Ready for Dock Gate Clearance' : 'Complete All Inspection Checks'}
+            {isAllChecked ? '✓ Authorize Dock Gate Clearance' : 'Complete All Inspection Checks (5/5 Required)'}
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -118,13 +208,13 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 80,
+    paddingBottom: 90,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   eyebrow: {
     fontSize: 10,
@@ -145,7 +235,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: 'rgba(21, 33, 29, 0.08)',
-    marginBottom: 20,
+    marginBottom: 18,
   },
   capacityHeader: {
     flexDirection: 'row',
@@ -205,14 +295,92 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: '#15211D',
   },
   sectionSub: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#77736D',
     marginTop: 1,
+  },
+  consignmentsTotalWeight: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#205A46',
+  },
+  manifestList: {
+    gap: 10,
+  },
+  manifestCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(21, 33, 29, 0.08)',
+  },
+  manifestTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  manifestIdBadge: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  manifestIdText: {
+    fontSize: 10,
+    fontFamily: 'monospace',
+    fontWeight: '700',
+    color: '#205A46',
+  },
+  manifestStopNum: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#77736D',
+  },
+  manifestCustName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#15211D',
+    marginBottom: 4,
+  },
+  manifestMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    alignItems: 'center',
+  },
+  manifestMetaText: {
+    fontSize: 10,
+    color: '#55534F',
+  },
+  manifestColdText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  sealRow: {
+    flexDirection: 'row',
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(21, 33, 29, 0.04)',
+    alignItems: 'center',
+  },
+  sealLabel: {
+    fontSize: 10,
+    color: '#77736D',
+    marginRight: 4,
+  },
+  sealValue: {
+    fontSize: 10,
+    fontFamily: 'monospace',
+    fontWeight: '700',
+    color: '#15211D',
   },
   checkCounter: {
     fontSize: 11,
@@ -246,7 +414,7 @@ const styles = StyleSheet.create({
     borderColor: '#929E99',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 10,
     marginTop: 2,
   },
   checkboxChecked: {
@@ -261,19 +429,37 @@ const styles = StyleSheet.create({
   itemTextWrap: {
     flex: 1,
   },
+  itemTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   itemTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#15211D',
+    flex: 1,
+    marginRight: 6,
   },
   itemTitleChecked: {
     color: '#205A46',
   },
+  categoryPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 4,
+  },
+  categoryPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#4B5563',
+  },
   itemDescription: {
     fontSize: 11,
     color: '#77736D',
-    marginTop: 2,
-    lineHeight: 15,
+    marginTop: 3,
+    lineHeight: 16,
   },
   signoffBtn: {
     marginTop: 20,
@@ -284,7 +470,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   signoffBtnDisabled: {
-    backgroundColor: '#A8B3AE',
+    backgroundColor: '#55605B',
   },
   signoffBtnText: {
     color: '#FFFFFF',

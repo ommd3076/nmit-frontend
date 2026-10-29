@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 
 interface DataBadgeProps {
   label: string;
-  tone?: 'default' | 'success' | 'warning' | 'preview';
+  tone?: 'default' | 'success' | 'warning' | 'preview' | 'risk';
 }
 
 export const DataBadge: React.FC<DataBadgeProps> = ({ label, tone = 'preview' }) => {
@@ -19,14 +19,20 @@ export const DataBadge: React.FC<DataBadgeProps> = ({ label, tone = 'preview' })
         return {
           bg: '#FDF4EB',
           border: '#FBD6B0',
-          text: '#D78A45'
+          text: '#B26B00'
+        };
+      case 'risk':
+        return {
+          bg: '#FBECEB',
+          border: '#F5C2C0',
+          text: '#C62828'
         };
       case 'preview':
       default:
         return {
           bg: '#F3F4F6',
           border: '#E5E7EB',
-          text: '#4B5563'
+          text: '#4A5565'
         };
     }
   };
@@ -43,7 +49,7 @@ export const DataBadge: React.FC<DataBadgeProps> = ({ label, tone = 'preview' })
 const styles = StyleSheet.create({
   badge: {
     paddingHorizontal: 8,
-    paddingVertical: 2.5,
+    paddingVertical: 3,
     borderRadius: 999,
     borderWidth: 1,
     alignSelf: 'flex-start',
