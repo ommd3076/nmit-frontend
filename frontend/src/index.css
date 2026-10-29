@@ -5,14 +5,16 @@
 :root {
   --arq-canvas: #F6F8F5;
   --arq-canvas-subtle: #EEF2ED;
-  --arq-glass: rgba(255, 255, 255, 0.75);
-  --arq-glass-strong: rgba(255, 255, 255, 0.92);
+  --arq-paper: #EEEAE2;
+  --arq-surface: #F8F6F1;
+  --arq-glass: rgba(255, 255, 255, 0.78);
+  --arq-glass-strong: rgba(255, 255, 255, 0.94);
   --arq-glass-border: rgba(255, 255, 255, 0.85);
   --arq-glass-border-outer: rgba(21, 33, 29, 0.08);
 
   --arq-ink-primary: #15211D;
-  --arq-ink-secondary: #68756F;
-  --arq-ink-tertiary: #929E99;
+  --arq-ink-secondary: #55534F;
+  --arq-ink-tertiary: #77736D;
 
   --arq-graphite: #17231F;
   --arq-forest: #205A46;
@@ -25,6 +27,7 @@
   --arq-amber-subtle: #FDF4EB;
   --arq-red: #C6534C;
   --arq-red-subtle: #FBECEB;
+  --arq-accent-red: #E53925;
 
   --route-1: #2F5BEA;
   --route-2: #0F8B8D;
@@ -49,6 +52,37 @@ body {
   overflow-x: hidden;
 }
 
+/* Subtle Editorial Soft-Light Paper Noise Texture (from saved fieldnotes reference) */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  opacity: 0.16;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+/* Button, Input & Select Accessibility */
+button, input, select {
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
+  outline: 2px solid var(--arq-forest);
+  outline-offset: 2px;
+}
+
+/* Interactive micro-interaction press feel */
+.interactive-tap {
+  transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 120ms ease;
+}
+.interactive-tap:active {
+  transform: scale(0.975);
+}
+
 /* Glass Material Design */
 .glass-panel {
   background: var(--arq-glass);
@@ -67,11 +101,18 @@ body {
 }
 
 .glass-pill {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.88);
   border: 1px solid rgba(21, 33, 29, 0.08);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+}
+
+/* High-contrast Fieldnotes Metric Card */
+.fieldnote-card {
+  background: var(--arq-surface);
+  border: 1px solid rgba(21, 33, 29, 0.12);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 /* Tabular Numerals for Logistics Precision */
@@ -89,6 +130,9 @@ body {
 }
 
 @media (prefers-reduced-transparency: reduce) {
+  body::after {
+    display: none;
+  }
   .glass-panel,
   .glass-panel-strong,
   .glass-pill {

@@ -190,7 +190,7 @@ export const FleetOperationsView: React.FC<FleetOperationsViewProps> = ({
 
                     {/* Freshness */}
                     <td className="py-3.5 pr-3 tabular-nums text-[#68756F] text-[11px]">
-                      Just now
+                      14:40:12 IST
                     </td>
 
                     {/* Action */}

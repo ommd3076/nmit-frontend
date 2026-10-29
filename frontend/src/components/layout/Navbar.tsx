@@ -52,8 +52,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span className="text-2xl font-black tracking-tight text-[#15211D]">
             <span className="text-[#205A46]">ar</span>Q
           </span>
-          <span className="text-[10px] uppercase font-bold tracking-widest text-[#68756F] bg-[#E2F4EE] text-[#205A46] px-2 py-0.5 rounded-full border border-[#A8DBC9]">
-            DISPATCH OS
+          <span className="text-[10px] uppercase font-mono font-bold tracking-widest text-[#205A46] bg-[#E2F4EE] px-2.5 py-0.5 rounded-full border border-[#A8DBC9]">
+            DISPATCH OS · QML-01
           </span>
         </div>
 
@@ -83,8 +83,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             placeholder="Search vehicles, stops, waypoints, SLA deadlines…"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 text-xs rounded-full bg-white/80 border border-black/5 text-[#15211D] placeholder-[#68756F] focus:outline-none focus:ring-2 focus:ring-[#205A46]/20 focus:border-[#205A46] transition-all"
+            className="w-full pl-9 pr-12 py-1.5 text-xs rounded-full bg-white/80 border border-black/5 text-[#15211D] placeholder-[#68756F] focus:outline-none focus:ring-2 focus:ring-[#205A46]/20 focus:border-[#205A46] transition-all"
           />
+          <kbd className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[9px] font-mono text-[#929E99] bg-black/5 px-1.5 py-0.5 rounded border border-black/5">
+            /
+          </kbd>
         </div>
       </div>
 
