@@ -1,0 +1,20 @@
+/* Strengthen secondary text contrast without changing its semantic color cues. */
+.arq-app {
+  --muted: #586a60;
+  --faint: #65756c;
+}
+
+.arq-app :is(.arq-eyebrow, .arq-panel-caption, .arq-last-updated,
+  .arq-metric small, .arq-table thead th, .arq-source-note,
+  .arq-selected-stats small, .arq-route-info small, .arq-nav-label,
+  .arq-activity-list time) {
+  color: #5e6d64;
+}
+
+.arq-app .arq-badge {
+  font-size: 10px;
+}
+
+.arq-app :is(.arq-empty p, .arq-activity-empty) {
+  color: #596a60;
+}
