@@ -1,92 +1,100 @@
 import React from 'react';
-import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import App from '../App';
 
-describe('Operator Journey Full Workflow Integration', () => {
-  it('executes the full dispatcher journey with selection state preserved across views', async () => {
+const now = '2026-10-30T12:00:00.000Z';
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+}
+
+function installBackendMock(overrides: Record<string, (init: RequestInit) => Response | Promise<Response>> = {}) {
+  const calls: Array<{ path: string; init: RequestInit; body: unknown }> = [];
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
+    const url = new URL(String(input), 'http://localhost');
+    const path = url.pathname.replace('/api/v1', '');
+    let body: unknown;
+    try { body = init.body ? JSON.parse(String(init.body)) : undefined; } catch { body = undefined; }
+    calls.push({ path, init, body });
+    const common: Record<string, unknown> = {
+      '/health': { api_version: 'test', timestamp: now, capacity: {}, engines_available: [] },
+      '/runs': [], '/jobs': [],
+      '/demo/dispatcher/state': { actor: 'dispatcher', states: [], proposals: [] },
+      '/demo/audits': [],
+      '/intelligence/evidence': { model_name: 'test fixture', disclaimer: 'Test data only', calibration_points: [], benchmarks: [], quantum_circuit_summary: { qubits: null } },
+    };
+    const override = overrides[path];
+    if (override) return override(init);
+    return json(common[path] ?? { error: { code: 'not_found', message: `Unexpected test request: ${path}` } }, common[path] === undefined ? 404 : 200);
+  }));
+  return calls;
+}
+
+describe('Integrated operator journey (API boundary mocked)', () => {
+  beforeEach(() => {
+    window.history.replaceState(null, '', '/');
+    // jsdom does not implement these browser dialog methods.
+    if (!HTMLDialogElement.prototype.showModal) Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value: vi.fn() });
+    if (!HTMLDialogElement.prototype.close) Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value: vi.fn() });
+  });
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+  it('navigates through all ten wired operator views', async () => {
+    installBackendMock();
     render(<App />);
+    await screen.findByRole('heading', { name: 'Command center' });
 
-    // 1. App loads with scenario name
-    await waitFor(() => {
-      const titles = screen.getAllByText(/Bengaluru Urban Express/i);
-      expect(titles.length).toBeGreaterThan(0);
+    const views = [
+      ['Command', 'Command center', 'command'], ['Live map', 'Live map', 'map'], ['Dispatch', 'Dispatch planning', 'dispatch'],
+      ['Compare', 'Route comparison', 'compare'], ['Fleet', 'Fleet', 'fleet'], ['Drivers', 'Drivers', 'driver'],
+      ['Orders', 'Orders', 'orders'], ['Analytics', 'Analytics', 'analytics'], ['Diagnostics', 'Diagnostics', 'diagnostics'],
+      ['Recovery', 'Incidents & audit', 'recovery'],
+    ];
+    for (const [nav, heading, hash] of views) {
+      fireEvent.click(screen.getByRole('button', { name: nav }));
+      await waitFor(() => expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument());
+      expect(window.location.hash).toBe(`#/${hash}`);
+    }
+  });
+
+  it('submits the edited scenario to validation and QAOA, then renders the returned backend job', async () => {
+    const calls = installBackendMock({
+      '/scenarios/validate': () => json({ valid: true, errors: [] }),
+      '/jobs/qaoa': () => json({ id: 'job-qaoa-42', status: 'succeeded', metadata: { execution_type: 'local_simulator' }, result: {
+        plan: { status: 'feasible', objective: 7, travel_cost: 5, lateness_exposure: 2, routes: [{ vehicle_id: 'V1', order_ids: ['A'], stops: [{ order_id: 'A', arrival: 2, service_start: 2, lateness: 0 }], travel_cost: 5 }] },
+        validation: { valid: true, errors: [] },
+      } }),
     });
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Dispatch' }));
+    await screen.findByRole('heading', { name: 'Dispatch planning' });
 
-    // 2. Default vehicle KA-03 is active; inspect its at-risk stop
-    const zeptoStop = screen.getByText(/Zepto Dark Store #8/i);
-    expect(zeptoStop).toBeInTheDocument();
-    fireEvent.click(zeptoStop);
+    fireEvent.change(screen.getByLabelText('Depot identifier'), { target: { value: 'DEPOT-X' } });
+    fireEvent.change(screen.getByLabelText('Planning algorithm'), { target: { value: 'qaoa' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Validate and run optimization' }));
 
-    // 3. Verify stop drawer opens with SLA context and simulated interval
-    await waitFor(() => {
-      expect(screen.getByText(/Contractual SLA/i)).toBeInTheDocument();
-      expect(screen.getByText(/simulated interval/i)).toBeInTheDocument();
-      expect(screen.getByText(/assumed rate ₹83\/\$/i)).toBeInTheDocument();
+    await screen.findByText('Job job-qaoa-42');
+    expect(screen.getByText('Backend job succeeded.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Depot identifier')).toHaveValue('DEPOT-X');
+    expect(screen.getByText('7')).toBeInTheDocument();
+
+    const validation = calls.find((call) => call.path === '/scenarios/validate');
+    const submission = calls.find((call) => call.path === '/jobs/qaoa');
+    expect(validation?.body).toMatchObject({ depot: 'DEPOT-X', vehicles: expect.arrayContaining([{ id: 'V1', capacity: 3 }]), orders: expect.any(Array), travel: expect.any(Object) });
+    expect(submission?.body).toMatchObject({ seed: 7, shots: 128, warm_start: true, angle_grid: 4, scenario: { depot: 'DEPOT-X' } });
+    expect(submission?.init.method).toBe('POST');
+  });
+
+  it('shows a field-level validation error and does not submit a solver job', async () => {
+    const calls = installBackendMock({
+      '/scenarios/validate': () => json({ detail: { error: { code: 'invalid_scenario', message: 'orders[0].demand must be positive' } } }, 422),
     });
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Dispatch' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Validate and run optimization' }));
 
-    // 4. Select vehicle KA-04 from the map legend
-    const vanRouteButton = screen.getByRole('button', { name: /KA-04/i });
-    expect(vanRouteButton).toBeInTheDocument();
-    fireEvent.click(vanRouteButton);
-
-    // 5. Navigate to Route Planning (Dispatch View)
-    const routePlanNav = screen.getByRole('button', { name: /Route Planning/i });
-    fireEvent.click(routePlanNav);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Optimization Solver Engine/i)).toBeInTheDocument();
-      expect(screen.getByText(/PUBLISHED MANIFEST/i)).toBeInTheDocument();
-    });
-
-    // 6. Navigate to QML Intelligence / Evidence view
-    const qmlNav = screen.getByRole('button', { name: /QML Intelligence/i });
-    fireEvent.click(qmlNav);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Quantum Machine Learning & Optimization Evidence/i)).toBeInTheDocument();
-      expect(screen.getByText(/Platt Reliability Diagram/i)).toBeInTheDocument();
-      expect(screen.getAllByText(/Brier Score: 0.142/i).length).toBeGreaterThan(0);
-      expect(screen.getByText(/Parameterized Quantum Circuit \(VQC\)/i)).toBeInTheDocument();
-    });
-
-    // 7. Navigate to SLA & Exposure view
-    const slaNav = screen.getByRole('button', { name: /SLA & Exposure/i });
-    fireEvent.click(slaNav);
-
-    await waitFor(() => {
-      expect(screen.getByText(/SLA Violation Risk & Contractual Exposure/i)).toBeInTheDocument();
-    });
-
-    // 8. Click Inspect on an at-risk stop to return to Command Center
-    const inspectButtons = screen.getAllByRole('button', { name: /Inspect/i });
-    expect(inspectButtons.length).toBeGreaterThan(0);
-    fireEvent.click(inspectButtons[0]);
-
-    // 9. Verify we returned to Command Center and Stop Drawer is active with selection preserved
-    await waitFor(() => {
-      expect(screen.getByText(/Contractual SLA/i)).toBeInTheDocument();
-      expect(screen.getByText(/assumed rate ₹83\/\$/i)).toBeInTheDocument();
-    });
-
-    // 10. Switch to Fleet Operations view
-    const fleetNav = screen.getByRole('button', { name: /Fleet Operations/i });
-    fireEvent.click(fleetNav);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Fleet Operations & Telemetry/i)).toBeInTheDocument();
-    });
-
-    // Select second vehicle and locate on map
-    const secondVehRow = screen.getByText(/KA-04-MB-4819/i);
-    fireEvent.click(secondVehRow);
-
-    const locateBtn = screen.getByRole('button', { name: /Locate on Command Center Map/i });
-    fireEvent.click(locateBtn);
-
-    // Verify back in Command Center with KA-04-MB-4819 focused
-    await waitFor(() => {
-      expect(screen.getByText(/KA-04-MB-4819/i)).toBeInTheDocument();
-    });
+    expect(await screen.findByText('orders[0].demand must be positive')).toBeInTheDocument();
+    expect(calls.some((call) => call.init.method === 'POST' && (call.path === '/jobs' || call.path === '/jobs/qaoa'))).toBe(false);
   });
 });

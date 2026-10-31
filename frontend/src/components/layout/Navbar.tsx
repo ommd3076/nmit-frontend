@@ -49,7 +49,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Left: Brand + Date Widget + Scenario Switcher */}
       <div className="flex items-center space-x-5">
         <div className="flex items-baseline space-x-2">
-          <span className="text-2xl font-black tracking-tight text-[#141F1A]">
+          <span className="text-2xl font-bold tracking-tight text-[#141F1A]">
             <span className="text-[#1E5A44]">ar</span>Q
           </span>
           <span className="text-[10px] uppercase font-mono font-bold tracking-widest text-[#1E5A44] bg-[#E8F5EE] px-2.5 py-0.5 rounded-full border border-[#A8DBC9]">

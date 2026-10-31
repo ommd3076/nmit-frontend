@@ -7,14 +7,18 @@ import {
   BrainCircuit,
   Activity,
   Cpu,
+  Smartphone,
   Sun,
   Moon
 } from 'lucide-react';
+
+import { SystemHealth } from '../../types/api';
 
 export type NavView =
   | 'command'
   | 'fleet'
   | 'dispatch'
+  | 'terminal'
   | 'risk'
   | 'intelligence'
   | 'activity'
@@ -24,14 +28,17 @@ interface SidebarRailProps {
   currentView: NavView;
   onSelectView: (view: NavView) => void;
   activeJobsCount?: number;
+  health?: SystemHealth | null;
 }
 
 export const SidebarRail: React.FC<SidebarRailProps> = ({
   currentView,
   onSelectView,
-  activeJobsCount = 0
+  activeJobsCount = 0,
+  health
 }) => {
   const [isDarkMode, setIsDarkMode] = React.useState(false);
+  const isHealthy = health?.status === 'healthy' || (health as any)?.status === 'ok';
 
   const navItems: { id: NavView; label: string; icon: React.ReactNode; badge?: number }[] = [
     {
@@ -48,6 +55,11 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
       id: 'dispatch',
       label: 'Route Planning',
       icon: <RouteIcon className="w-4 h-4" />
+    },
+    {
+      id: 'terminal',
+      label: 'Phone Terminal',
+      icon: <Smartphone className="w-4 h-4" />
     },
     {
       id: 'risk',
@@ -110,21 +122,24 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
 
       {/* Bottom Area: Engine status & Atlas Light/Dark toggle pill */}
       <div className="space-y-3">
-        {/* Engine status pill */}
+        {/* Engine & Live Connection status pill */}
         <div className="hidden md:block p-3 rounded-2xl bg-[#F5F3ED] border border-[#E5E0D8] text-xs text-[#4D5C54]">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-[#7D8D85] mb-1">
-            Engine Standard
+          <div className="text-[10px] font-bold uppercase tracking-wider text-[#7D8D85] mb-1 flex items-center justify-between">
+            <span>System Status</span>
+            <span className={`w-2 h-2 rounded-full ${isHealthy ? 'bg-[#1E5A44] shadow-[0_0_6px_#1E5A44]' : 'bg-[#D97706]'}`} />
           </div>
           <div className="text-[#141F1A] font-semibold flex items-center justify-between text-[11px]">
-            <span>QpiAI Opt · QUBO</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-[#1E5A44]" />
+            <span>{isHealthy ? 'FastAPI 127.0.0.1:8000' : 'Offline / Standalone'}</span>
           </div>
-          <div className="text-[10px] text-[#7D8D85] mt-0.5">
-            2-Qubit VQC · Statevector
+          <div className="text-[10px] text-[#7D8D85] mt-1 tabular-nums flex items-center justify-between">
+            <span>Compute Slots:</span>
+            <span className="font-mono font-medium text-[#141F1A]">
+              {health?.capacity?.active_slots ?? 0}/{health?.capacity?.max_slots ?? 2} in use
+            </span>
           </div>
         </div>
 
-        {/* Atlas Bottom Theme Switch Pill (ref_01_atlas_dashboard.png) */}
+        {/* Atlas Bottom Theme Switch Pill */}
         <div className="flex items-center justify-center md:justify-start">
           <div className="flex items-center p-1 bg-[#F5F3ED] border border-[#E5E0D8] rounded-full">
             <button
@@ -141,7 +156,7 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
               className={`p-1.5 rounded-full transition-all cursor-pointer ${
                 isDarkMode ? 'bg-[#141F1A] text-white shadow-xs' : 'text-[#7D8D85] hover:text-[#141F1A]'
               }`}
-              title="Dark Mode (Simulated)"
+              title="Dark Mode"
             >
               <Moon className="w-3.5 h-3.5" />
             </button>

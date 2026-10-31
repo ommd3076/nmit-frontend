@@ -27,8 +27,8 @@ export const BENGALURU_SCENARIO: PlanRun = {
     evaluated_at: '2026-10-29T08:31:12+05:30'
   },
   bounds: [
-    [77.5200, 12.9100], // SW [lng, lat]
-    [77.7200, 13.0600]  // NE [lng, lat]
+    [77.5000, 12.9100], // SW [lng, lat]
+    [77.7700, 13.0800]  // NE [lng, lat]
   ],
   vehicles: [
     {
@@ -42,9 +42,9 @@ export const BENGALURU_SCENARIO: PlanRun = {
       capacity_kg: 1200,
       used_capacity_kg: 840,
       route_id: 'route-blr-01',
-      current_lat: 12.9784,
-      current_lng: 77.6408,
-      heading_deg: 82,
+      current_lat: 12.9670,
+      current_lng: 77.6545,
+      heading_deg: 165,
       speed_kmh: 34,
       last_ping_iso: '2026-10-29T14:38:10+05:30',
       eta_deviation_minutes: 2,
@@ -62,9 +62,9 @@ export const BENGALURU_SCENARIO: PlanRun = {
       capacity_kg: 800,
       used_capacity_kg: 610,
       route_id: 'route-blr-02',
-      current_lat: 13.0125,
-      current_lng: 77.5855,
-      heading_deg: 340,
+      current_lat: 13.0290,
+      current_lng: 77.5780,
+      heading_deg: 70,
       speed_kmh: 18,
       last_ping_iso: '2026-10-29T14:37:45+05:30',
       eta_deviation_minutes: 18,
@@ -82,9 +82,9 @@ export const BENGALURU_SCENARIO: PlanRun = {
       capacity_kg: 1700,
       used_capacity_kg: 1320,
       route_id: 'route-blr-03',
-      current_lat: 12.9345,
-      current_lng: 77.6189,
-      heading_deg: 165,
+      current_lat: 12.9460,
+      current_lng: 77.6360,
+      heading_deg: 45,
       speed_kmh: 41,
       last_ping_iso: '2026-10-29T14:38:22+05:30',
       eta_deviation_minutes: -3,
@@ -102,9 +102,9 @@ export const BENGALURU_SCENARIO: PlanRun = {
       capacity_kg: 2400,
       used_capacity_kg: 1980,
       route_id: 'route-blr-04',
-      current_lat: 12.9910,
-      current_lng: 77.7120,
-      heading_deg: 215,
+      current_lat: 12.9830,
+      current_lng: 77.7165,
+      heading_deg: 40,
       speed_kmh: 12,
       last_ping_iso: '2026-10-29T14:35:10+05:30',
       eta_deviation_minutes: 26,
@@ -117,16 +117,33 @@ export const BENGALURU_SCENARIO: PlanRun = {
       id: 'route-blr-01',
       vehicle_id: 'van-blr-01',
       color_token: '#2F5BEA', // Blue
-      total_distance_km: 28.4,
+      total_distance_km: 31.8,
       total_duration_minutes: 110,
       geometry_coordinates: [
-        [77.6050, 12.9650], // Central Hub
-        [77.6210, 12.9710],
-        [77.6408, 12.9784], // Indiranagar 100ft Rd
-        [77.6530, 12.9850],
-        [77.6650, 12.9920], // Marathahalli Bridge
-        [77.6850, 12.9820],
-        [77.7010, 12.9750]  // Varthur Hub
+        [77.6300, 12.9800], // Central Hub (Depot Origin)
+        [77.6345, 12.9770], // 100ft Rd / CMH Rd junction
+        [77.6380, 12.9725], // 100ft Rd / 12th Main Indiranagar
+        [77.6410, 12.9680], // Stop 1: HealthKart Fulfilment
+        [77.6395, 12.9730], // 12th Main Indiranagar
+        [77.6415, 12.9775], // Turn to CMH Road
+        [77.6440, 12.9780], // Stop 2: Metro Pharmacy Dist.
+        [77.6475, 12.9795], // CMH Road East
+        [77.6510, 12.9810], // Stop 3: Amazon Fresh Pod Indiranagar
+        [77.6525, 12.9740], // Wind Tunnel Rd Entry
+        [77.6545, 12.9670], // En-Route: Van-01 Telemetry Position
+        [77.6560, 12.9620], // Wind Tunnel Rd South
+        [77.6580, 12.9580], // Stop 4: Zepto Dark Store #8
+        [77.6630, 12.9592], // Old Airport Rd East
+        [77.6685, 12.9600], // Vimanapura Approach
+        [77.6740, 12.9610], // Stop 5: Apollo Hospital Supply Dock
+        [77.6720, 12.9720], // Suranjandas Rd North
+        [77.6680, 12.9830], // Old Madras Rd Junction
+        [77.6610, 12.9910], // Byappanahalli / Banaswadi Corridor
+        [77.6550, 12.9970], // Outer Ring Rd Approach
+        [77.6520, 13.0020], // Stop 6: Decathlon Logistics Hub
+        [77.6450, 12.9960], // Banaswadi Main Rd South-West
+        [77.6370, 12.9880], // Swami Vivekananda Rd
+        [77.6300, 12.9800]  // Central Hub (Depot Return)
       ],
       stops: [
         {
@@ -268,14 +285,31 @@ export const BENGALURU_SCENARIO: PlanRun = {
       id: 'route-blr-02',
       vehicle_id: 'van-blr-02',
       color_token: '#D78A45', // Amber / Warning
-      total_distance_km: 32.1,
+      total_distance_km: 38.4,
       total_duration_minutes: 135,
       geometry_coordinates: [
-        [77.5680, 13.0100], // Malleshwaram
-        [77.5855, 13.0125], // Hebbal Flyover
-        [77.5920, 13.0310],
-        [77.6010, 13.0480], // Sahakara Nagar
-        [77.5980, 13.0610]  // Yelahanka New Town
+        [77.6300, 12.9800], // Central Hub (Depot Origin)
+        [77.6050, 12.9920], // Mekhri Circle / Jayamahal
+        [77.5750, 13.0080], // CV Raman Rd / IISc
+        [77.5520, 13.0180], // Yeshwantpur Circle
+        [77.5350, 13.0240], // Tumkur Rd / Peenya Entry
+        [77.5250, 13.0280], // Stop 7: BigBasket Wholesale Peenya
+        [77.5380, 13.0240], // Tumkur Rd Return
+        [77.5500, 13.0210], // Stop 8: Schneider Electric R&D Hub
+        [77.5650, 13.0260], // Mattikere / Outer Ring Rd
+        [77.5780, 13.0290], // En-Route: Van-02 Telemetry Position
+        [77.5855, 13.0305], // Hebbal Flyover Ramp
+        [77.5890, 13.0310], // Stop 9: Aster CMI Hospital Central Stores
+        [77.5870, 13.0380], // Bellary Rd North
+        [77.5850, 13.0450], // Stop 10: Blinkit Kodigehalli Hub
+        [77.5880, 13.0560], // Yelahanka Bypass
+        [77.5920, 13.0680], // Stop 11: Tata Electronics Component Bay
+        [77.6020, 13.0640], // Doddaballapur Rd
+        [77.6100, 13.0580], // Stop 12: Rail Wheel Factory Logistics Dock
+        [77.6150, 13.0420], // Thanisandra Main Rd
+        [77.6210, 13.0220], // Nagavara Junction / Outer Ring Rd
+        [77.6270, 13.0010], // Hennur / Kammanahalli
+        [77.6300, 12.9800]  // Central Hub (Depot Return)
       ],
       stops: [
         {
@@ -417,13 +451,26 @@ export const BENGALURU_SCENARIO: PlanRun = {
       id: 'route-blr-03',
       vehicle_id: 'van-blr-03',
       color_token: '#205A46', // Forest Green
-      total_distance_km: 24.8,
+      total_distance_km: 26.2,
       total_duration_minutes: 95,
       geometry_coordinates: [
-        [77.5890, 12.9250], // Jayanagar
-        [77.6189, 12.9345], // Koramangala 80ft Rd
-        [77.6320, 12.9410],
-        [77.6410, 12.9520]  // Domlur
+        [77.6300, 12.9800], // Central Hub (Depot Origin)
+        [77.6240, 12.9660], // Richmond Rd / Trinity Circle
+        [77.6180, 12.9520], // Adugodi / Hosur Rd
+        [77.6200, 12.9400], // Koramangala 80ft Rd Entry
+        [77.6250, 12.9340], // Stop 13: Swiggy Instamart Koramangala
+        [77.6280, 12.9370], // Stop 14: Flipkart Grocery Hub (Sony World Junction)
+        [77.6250, 12.9310], // 100ft Rd South
+        [77.6210, 12.9280], // Stop 15: St. John’s Medical Research Hub
+        [77.6260, 12.9350], // Koramangala 1st Block
+        [77.6310, 12.9410], // Stop 16: Croma Retail Logistics Bay (Ejipura)
+        [77.6360, 12.9460], // En-Route: Van-03 Telemetry Position
+        [77.6410, 12.9510], // Stop 17: Dell Technologies Campus Receiving
+        [77.6450, 12.9530], // EGL Business Park Entry
+        [77.6490, 12.9550], // Stop 18: Embassy Golf Links Dock #2
+        [77.6420, 12.9640], // Domlur North / Indiranagar 100ft Rd
+        [77.6380, 12.9720], // Indiranagar 100ft Rd North
+        [77.6300, 12.9800]  // Central Hub (Depot Return)
       ],
       stops: [
         {
@@ -564,13 +611,32 @@ export const BENGALURU_SCENARIO: PlanRun = {
       id: 'route-blr-04',
       vehicle_id: 'van-blr-04',
       color_token: '#C6534C', // Red / Critical Delay
-      total_distance_km: 41.5,
+      total_distance_km: 44.8,
       total_duration_minutes: 165,
       geometry_coordinates: [
-        [77.6400, 12.9900], // Baiyappanahalli
-        [77.6800, 12.9980], // Hoodi
-        [77.7120, 12.9910], // ITPL Whitefield
-        [77.7400, 12.9720]  // Kadugodi
+        [77.6300, 12.9800], // Central Hub (Depot Origin)
+        [77.6520, 12.9860], // Old Madras Rd / Byappanahalli
+        [77.6780, 12.9950], // KR Puram Hanging Bridge
+        [77.6980, 12.9900], // Hoodi Circle
+        [77.7100, 12.9820], // EPIP Main Rd Entry
+        [77.7150, 12.9810], // Stop 19: Schneider Whitefield Manufacturing
+        [77.7165, 12.9830], // En-Route: Van-04 Telemetry Position
+        [77.7180, 12.9850], // Stop 20: SAP Labs Campus Inbound
+        [77.7240, 12.9780], // Whitefield Main Rd
+        [77.7280, 12.9700], // Ramagondanahalli Junction
+        [77.7310, 12.9620], // Stop 21: Columbia Asia Hospital Whitefield
+        [77.7350, 12.9750], // Hope Farm Junction
+        [77.7310, 12.9840], // ITPL Gate 2
+        [77.7280, 12.9890], // Stop 22: Tata Consultancy Services ITPL
+        [77.7380, 12.9930], // Whitefield Post Office / Soukya Entry
+        [77.7470, 12.9960], // Soukya Rd East
+        [77.7550, 12.9980], // Stop 23: Amazon Fulfillment Center BLR4
+        [77.7490, 13.0040], // Kadugodi Flyover
+        [77.7420, 13.0080], // Stop 24: Kadugodi Container Freight Station
+        [77.7200, 13.0050], // Kadugodi / Hoodi Bypass
+        [77.6950, 12.9970], // KR Puram Outer Corridor
+        [77.6650, 12.9900], // Old Madras Rd
+        [77.6300, 12.9800]  // Central Hub (Depot Return)
       ],
       stops: [
         {

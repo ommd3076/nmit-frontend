@@ -25,8 +25,8 @@ export const JobsView: React.FC<JobsViewProps> = ({ jobs, health, onRefreshJobs 
     }, 800);
   };
 
-  const activeSlots = health?.capacity.active_slots ?? 1;
-  const maxSlots = health?.capacity.max_slots ?? 2;
+  const activeSlots = health?.capacity?.active_slots ?? 0;
+  const maxSlots = health?.capacity?.max_slots ?? 2;
 
   return (
     <div className="flex-1 flex flex-col overflow-y-auto p-6 gap-6 select-none text-xs">
@@ -36,7 +36,7 @@ export const JobsView: React.FC<JobsViewProps> = ({ jobs, health, onRefreshJobs 
           <div>
             <div className="flex items-center space-x-2">
               <Cpu className="w-5 h-5 text-[#1E5A44]" />
-              <h2 className="text-xl font-extrabold text-[#141F1A] tracking-tight">
+              <h2 className="text-xl font-bold text-[#141F1A] tracking-tight">
                 Solver Concurrency & Job Pipeline
               </h2>
             </div>
@@ -89,7 +89,7 @@ export const JobsView: React.FC<JobsViewProps> = ({ jobs, health, onRefreshJobs 
       {/* Live Jobs Table */}
       <div className="bg-white rounded-3xl p-6 border border-[#EAE6DF] shadow-xs">
         <div className="flex items-center justify-between pb-3 border-b border-[#EAE6DF]">
-          <h3 className="font-extrabold text-base text-[#141F1A]">
+          <h3 className="font-bold text-base text-[#141F1A]">
             Job Queue & Execution History ({jobs.length})
           </h3>
           <button
@@ -135,30 +135,51 @@ export const JobsView: React.FC<JobsViewProps> = ({ jobs, health, onRefreshJobs 
                       <DataBadge badge={job.provenance_badge} size="sm" />
                     </td>
 
-                    {/* Progress Bar */}
+                    {/* Progress Indicator */}
                     <td className="py-3.5 pr-3 w-40">
-                      <div className="flex items-center space-x-2">
-                        <div className="flex-1 h-2 bg-black/5 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all duration-500 ${
-                              job.status === 'succeeded'
-                                ? 'bg-[#205A46]'
-                                : job.status === 'cancelled'
-                                ? 'bg-[#929E99]'
-                                : 'bg-[#2F5BEA]'
-                            }`}
-                            style={{ width: `${job.progress_pct}%` }}
-                          />
+                      {job.progress_pct !== null && job.progress_pct !== undefined ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="flex-1 h-2 bg-black/5 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                job.status === 'succeeded'
+                                  ? 'bg-[#205A46]'
+                                  : job.status === 'cancelled'
+                                  ? 'bg-[#929E99]'
+                                  : 'bg-[#2F5BEA]'
+                              }`}
+                              style={{ width: `${job.progress_pct}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] tabular-nums font-semibold text-[#68756F]">
+                            {job.progress_pct}%
+                          </span>
                         </div>
-                        <span className="text-[10px] tabular-nums font-bold text-[#68756F]">
-                          {job.progress_pct}%
-                        </span>
-                      </div>
+                      ) : (
+                        <div className="flex items-center space-x-2">
+                          <div className="flex-1 h-2 bg-black/5 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${
+                                job.status === 'succeeded'
+                                  ? 'w-full bg-[#205A46]'
+                                  : job.status === 'running'
+                                  ? 'w-1/2 bg-[#2F5BEA] animate-pulse'
+                                  : 'w-0 bg-[#929E99]'
+                              }`}
+                            />
+                          </div>
+                          <span className="text-[10px] font-medium text-[#68756F] capitalize">
+                            {job.status === 'succeeded' ? '100%' : job.status === 'running' ? 'Active' : '—'}
+                          </span>
+                        </div>
+                      )}
                     </td>
 
                     {/* Elapsed */}
                     <td className="py-3.5 pr-3 tabular-nums font-mono text-[#68756F]">
-                      {job.elapsed_seconds}s
+                      {job.elapsed_seconds !== null && job.elapsed_seconds !== undefined
+                        ? `${job.elapsed_seconds.toFixed(1)}s`
+                        : '—'}
                     </td>
 
                     {/* Status */}

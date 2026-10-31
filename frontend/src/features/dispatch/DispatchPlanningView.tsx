@@ -23,7 +23,8 @@ export const DispatchPlanningView: React.FC<DispatchPlanningViewProps> = ({
   onSelectRoute,
   onJobTriggered
 }) => {
-  const [selectedEngine, setSelectedEngine] = useState<string>('qpiai_opt');
+  const [selectedEngine, setSelectedEngine] = useState<string>('exact_enumeration');
+  const [selectedScenario, setSelectedScenario] = useState<string>('dispatch_tiny');
   const [delayWeight, setDelayWeight] = useState<number>(1.5);
   const [mileageWeight, setMileageWeight] = useState<number>(0.8);
   const [isSolving, setIsSolving] = useState<boolean>(false);
@@ -36,28 +37,33 @@ export const DispatchPlanningView: React.FC<DispatchPlanningViewProps> = ({
     setIsSolving(true);
     setSolveMessage('Submitting optimization request to dispatch pipeline…');
 
-    const res = await apiClient.submitSolve({
-      scenario_id: plan.scenario_id,
-      engine: selectedEngine,
-      penalty_weights: { delay_weight: delayWeight, mileage_weight: mileageWeight }
-    });
+    try {
+      const res = await apiClient.submitSolve({
+        scenario_id: selectedScenario,
+        engine: selectedEngine,
+        penalty_weights: { delay_weight: delayWeight, mileage_weight: mileageWeight }
+      });
 
-    if ('error' in res && res.error === 'capacity_reached') {
-      setSolveMessage(
-        `Capacity Reached (BoundedSemaphore 2/2). Solver slots currently occupied. Backoff retry scheduled in ${res.retry_after}s.`
-      );
-      setIsSolving(false);
-      return;
+      if ('error' in res && res.error === 'capacity_reached') {
+        setSolveMessage(
+          `Capacity Reached (BoundedSemaphore 2/2). Solver slots currently occupied. Backoff retry scheduled in ${res.retry_after}s.`
+        );
+        setIsSolving(false);
+        return;
+      }
+
+      if ('job_id' in res) {
+        setSolveMessage(`Job #${res.job_id} submitted successfully (${selectedEngine})! Polling execution state…`);
+        if (onJobTriggered) onJobTriggered();
+      }
+    } catch (err: any) {
+      const msg = err?.message || 'Solver submission failed.';
+      setSolveMessage(`Submission note: ${msg}`);
+    } finally {
+      setTimeout(() => {
+        setIsSolving(false);
+      }, 1500);
     }
-
-    if ('job_id' in res) {
-      setSolveMessage(`Job #${res.job_id} submitted successfully! Polling execution state…`);
-      if (onJobTriggered) onJobTriggered();
-    }
-
-    setTimeout(() => {
-      setIsSolving(false);
-    }, 2000);
   };
 
   const handlePublishPlan = () => {
@@ -78,13 +84,42 @@ export const DispatchPlanningView: React.FC<DispatchPlanningViewProps> = ({
           <div className="pb-3 border-b border-[#EAE6DF]">
             <div className="flex items-center space-x-2">
               <Sliders className="w-4 h-4 text-[#1E5A44]" />
-              <h2 className="text-base font-extrabold text-[#141F1A]">
+              <h2 className="text-base font-bold text-[#141F1A]">
                 Optimization Solver Engine
               </h2>
             </div>
           </div>
 
           <div className="mt-4 space-y-4">
+            {/* Scenario Target Selection */}
+            <div>
+              <label className="text-[10px] uppercase font-bold text-[#7D8D85] block mb-2">
+                Execution Scenario Target
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: 'dispatch_tiny', label: 'Tiny 3-Stop (Local)', desc: 'Executable exact fixture' },
+                  { id: plan.scenario_id, label: 'Current Plan', desc: plan.scenario_name.split('(')[0].trim() }
+                ].map((sc) => (
+                  <button
+                    key={sc.id}
+                    type="button"
+                    onClick={() => setSelectedScenario(sc.id)}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      selectedScenario === sc.id
+                        ? 'bg-[#141F1A] text-white border-transparent shadow-xs'
+                        : 'bg-[#F5F3ED]/70 border-[#E5E0D8] text-[#141F1A] hover:bg-[#F5F3ED]'
+                    }`}
+                  >
+                    <div className="font-semibold text-[11px] truncate">{sc.label}</div>
+                    <div className={`text-[9px] mt-0.5 truncate ${selectedScenario === sc.id ? 'text-white/70' : 'text-[#7D8D85]'}`}>
+                      {sc.desc}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Engine Selection */}
             <div>
               <label className="text-[10px] uppercase font-bold text-[#7D8D85] block mb-2">
@@ -92,10 +127,10 @@ export const DispatchPlanningView: React.FC<DispatchPlanningViewProps> = ({
               </label>
               <div className="space-y-2">
                 {[
-                  { id: 'qpiai_opt', label: 'QpiAI Opt (local QUBO)', desc: 'qubo.py penalty matrix with local simulator' },
-                  { id: 'qaoa', label: 'Warm-Start QAOA', desc: 'qaoa.py variational quantum optimization' },
-                  { id: 'financial', label: 'Financial Exact Cover', desc: 'financial.py exact SLA penalty minimization' },
-                  { id: 'exact', label: 'Exact Enumeration', desc: 'domain.py combinatorial brute force' }
+                  { id: 'exact_enumeration', label: 'Exact Enumeration (Active)', desc: 'domain.py combinatorial brute force' },
+                  { id: 'qaoa_warm_start', label: 'Warm-Start QAOA (Quantum Pipeline)', desc: 'qaoa.py variational quantum optimization' },
+                  { id: 'vqc_inference', label: 'Decision-Focused VQC (Inference)', desc: 'experiments_run1 parameterized quantum circuit' },
+                  { id: 'exact', label: 'Exact Solver (Alias)', desc: 'Combinatorial branch & bound solver' }
                 ].map((eng) => (
                   <button
                     key={eng.id}
@@ -179,7 +214,7 @@ export const DispatchPlanningView: React.FC<DispatchPlanningViewProps> = ({
           <div className="flex items-center justify-between pb-4 border-b border-[#EAE6DF]">
             <div>
               <div className="flex items-center space-x-2">
-                <span className="text-lg font-extrabold text-[#141F1A]">
+                <span className="text-lg font-bold text-[#141F1A]">
                   {plan.scenario_name}
                 </span>
                 <span

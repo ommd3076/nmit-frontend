@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { PlanRun } from '../../types/api';
 import { DataBadge } from '../../components/ui/DataBadge';
+import { EvilRiskAreaChart } from '../../components/charts/EvilRiskAreaChart';
 import {
   ShieldAlert,
-  ArrowRight
+  ArrowRight,
+  TrendingDown
 } from 'lucide-react';
 
 interface SlaRiskViewProps {
@@ -29,7 +31,7 @@ export const SlaRiskView: React.FC<SlaRiskViewProps> = ({ plan, onInspectStop })
   const routeExposure = plan.routes.map((route) => {
     const v = plan.vehicles.find((veh) => veh.id === route.vehicle_id);
     const exposureInr = route.stops.reduce((acc, s) => acc + s.penalty_exposure_inr, 0);
-    const atRiskCount = route.stops.filter((s) => !s.is_completed && (s.predicted_late_prob_max || 0) > 0.25).length;
+    const atRiskCount = route.stops.filter((s) => !s.is_completed && ((s.predicted_late_prob_max ?? 0) > 0.25 || s.status === 'at_risk')).length;
 
     return {
       routeId: route.id,
@@ -42,6 +44,14 @@ export const SlaRiskView: React.FC<SlaRiskViewProps> = ({ plan, onInspectStop })
     };
   });
 
+  const evilRiskData = routeExposure.map((re) => ({
+    name: re.callsign,
+    exposureInr: re.exposureInr,
+    atRiskCount: re.atRiskCount,
+    totalStops: re.totalStops,
+    color: re.color
+  }));
+
   return (
     <div className="flex-1 flex flex-col overflow-y-auto p-6 gap-6 select-none text-xs">
       {/* Top Exposure Summary Header */}
@@ -50,63 +60,55 @@ export const SlaRiskView: React.FC<SlaRiskViewProps> = ({ plan, onInspectStop })
           <div>
             <div className="flex items-center space-x-2">
               <ShieldAlert className="w-5 h-5 text-[#DC2626]" />
-              <h2 className="text-xl font-extrabold text-[#141F1A] tracking-tight">
+              <h2 className="text-xl font-bold text-[#141F1A] tracking-tight">
                 SLA Violation Risk & Contractual Exposure
               </h2>
             </div>
             <p className="text-xs text-[#7D8D85] mt-1">
-              Probabilistic late distributions derived from VQC and Platt calibration models
+              Route exposure and stop risk reported by this plan
             </p>
           </div>
 
           <div className="flex items-center space-x-4">
-            <DataBadge badge="Simulated · held-out run" size="md" />
+            <DataBadge badge={plan.provenance_badge} size="md" />
             <div className="text-right">
               <div className="text-[10px] uppercase font-bold text-[#7D8D85]">Total Financial Exposure</div>
-              <div className="text-2xl font-black text-[#DC2626] tabular-nums mt-0.5">
+              <div className="text-2xl font-bold text-[#DC2626] tabular-nums mt-0.5">
                 ₹{plan.total_sla_exposure_inr.toLocaleString('en-IN')}
-                <span className="text-xs font-normal text-[#7D8D85] ml-1.5">
-                  ({plan.assumed_rate_label})
-                </span>
+                <span className="block text-[13px] font-normal text-[#596a60]">{plan.assumed_rate_label}</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Risk Distribution Segmented Bar (Fieldnotes & RouteIQ style) */}
-        <div className="mt-4 p-4 bg-[#F5F3ED]/60 border border-[#E5E0D8] rounded-2xl">
-          <div className="flex justify-between items-center text-[10px] uppercase font-mono text-[#7D8D85] mb-2 font-bold">
-            <span>Commitment Risk Exposure Spectrum</span>
-            <span>{displayedStops.length} Monitored Stops</span>
-          </div>
-          <div className="w-full h-2.5 rounded-full bg-[#E5E0D8] overflow-hidden flex">
-            <div className="h-full bg-[#1E5A44]" style={{ width: '74%' }} title="On-Schedule: 74%" />
-            <div className="h-full bg-[#D97706]" style={{ width: '16%' }} title="Window Risk: 16%" />
-            <div className="h-full bg-[#DC2626]" style={{ width: '10%' }} title="Critical Violation Risk: 10%" />
-          </div>
-          <div className="flex justify-between items-center text-[10px] text-[#7D8D85] mt-2.5 font-mono">
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#1E5A44]" /> Within SLA (&lt;15% P_late)</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#D97706]" /> Impending Risk (15–40% P_late)</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#DC2626]" /> High Penalty Risk (&gt;40% P_late)</span>
-          </div>
+        {/* Source-backed route exposure comparison */}
+        <div className="mt-4">
+          <EvilRiskAreaChart data={evilRiskData} />
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-[#dce6df] bg-[#f7f9f7] px-4 py-3 text-[13px] text-[#42574b]">
+          <span className="flex items-center gap-2"><TrendingDown className="h-4 w-4 text-[#326c50]" aria-hidden="true" />Stops matching the displayed risk filter</span>
+          <span className="tabular-nums font-medium">{displayedStops.length}</span>
         </div>
 
         {/* Route Exposure Breakdown Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           {routeExposure.map((re) => (
-            <div
+            <button
               key={re.routeId}
+              type="button"
+              aria-pressed={selectedRouteFilter === re.routeId}
               onClick={() => setSelectedRouteFilter(selectedRouteFilter === re.routeId ? 'all' : re.routeId)}
-              className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+              className={`min-h-11 w-full p-4 rounded-xl border text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#326c50] ${
                 selectedRouteFilter === re.routeId
-                  ? 'bg-[#141F1A] text-white border-transparent shadow-xs'
-                  : 'bg-[#F5F3ED]/70 border-[#E5E0D8] text-[#141F1A] hover:bg-[#F5F3ED]'
+                  ? 'bg-[#e5eee8] text-[#20352b] border-[#91ad99]'
+                  : 'bg-[#fbfcfb] border-[#dce6df] text-[#20352b] hover:bg-[#f3f7f4]'
               }`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: re.color }} />
-                  <span className="font-extrabold text-xs">{re.callsign}</span>
+                  <span className="w-2.5 h-2.5 rounded-full border border-current" style={{ backgroundColor: re.color }} aria-hidden="true" />
+                  <span className="font-semibold text-xs">{re.callsign}</span>
                 </div>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                   re.atRiskCount > 0 ? 'bg-[#FEE2E2] text-[#DC2626]' : 'bg-[#E8F5EE] text-[#1E5A44]'
@@ -117,9 +119,9 @@ export const SlaRiskView: React.FC<SlaRiskViewProps> = ({ plan, onInspectStop })
 
               <div className="mt-3 flex items-baseline justify-between tabular-nums">
                 <span className="text-[11px] opacity-70">Penalty Exposure:</span>
-                <span className="font-extrabold text-sm">₹{re.exposureInr.toLocaleString('en-IN')}</span>
+                <span className="font-bold text-sm">₹{re.exposureInr.toLocaleString('en-IN')}</span>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -127,7 +129,7 @@ export const SlaRiskView: React.FC<SlaRiskViewProps> = ({ plan, onInspectStop })
       {/* At-Risk Service Commitments Table */}
       <div className="flex-1 bg-white rounded-3xl p-6 border border-[#EAE6DF] shadow-xs">
         <div className="flex items-center justify-between pb-3 border-b border-[#EAE6DF]">
-          <div className="font-extrabold text-sm text-[#141F1A]">
+          <div className="font-bold text-sm text-[#141F1A]">
             At-Risk Customer Delivery Commitments ({displayedStops.length})
           </div>
           <span className="text-[#7D8D85] text-[11px]">
@@ -144,23 +146,20 @@ export const SlaRiskView: React.FC<SlaRiskViewProps> = ({ plan, onInspectStop })
                 <th className="pb-3 font-bold">Commitment Window</th>
                 <th className="pb-3 font-bold">Predicted ETA (simulated)</th>
                 <th className="pb-3 font-bold">P(late) Interval</th>
-                <th className="pb-3 font-bold">Penalty Exposure (₹83/$)</th>
+              <th className="pb-3 font-bold">Penalty Exposure ({plan.assumed_rate_label})</th>
                 <th className="pb-3 font-bold">Operational Context</th>
                 <th className="pb-3 text-right font-bold">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EAE6DF]">
+              {displayedStops.length === 0 && (
+                <tr><td colSpan={8} className="py-8 text-center text-[13px] text-[#596a60]">No stops match this risk filter.</td></tr>
+              )}
               {displayedStops.map((stop) => {
                 const v = plan.vehicles.find((veh) => veh.id === stop.vehicle_id);
 
                 return (
-                  <tr
-                    key={stop.id}
-                    className="hover:bg-[#F5F3ED]/40 transition-colors cursor-pointer"
-                    onClick={() => {
-                      if (onInspectStop) onInspectStop(stop.id, stop.vehicle_id);
-                    }}
-                  >
+                  <tr key={stop.id} className="hover:bg-[#f3f7f4] transition-colors">
                     {/* Customer */}
                     <td className="py-4 pr-3">
                       <div className="font-bold text-[#141F1A]">{stop.customer_name}</div>
@@ -183,12 +182,12 @@ export const SlaRiskView: React.FC<SlaRiskViewProps> = ({ plan, onInspectStop })
                     </td>
 
                     {/* P(late) */}
-                    <td className="py-4 pr-3 tabular-nums font-extrabold text-[#DC2626]">
+                    <td className="py-4 pr-3 tabular-nums font-semibold text-[#DC2626]">
                       [{Math.round(stop.predicted_late_prob_min * 100)}%, {Math.round(stop.predicted_late_prob_max * 100)}%]
                     </td>
 
                     {/* Penalty */}
-                    <td className="py-4 pr-3 tabular-nums font-black text-[#DC2626]">
+                    <td className="py-4 pr-3 tabular-nums font-bold text-[#DC2626]">
                       ₹{stop.penalty_exposure_inr.toLocaleString('en-IN')}
                     </td>
 
@@ -204,7 +203,7 @@ export const SlaRiskView: React.FC<SlaRiskViewProps> = ({ plan, onInspectStop })
                           e.stopPropagation();
                           if (onInspectStop) onInspectStop(stop.id, stop.vehicle_id);
                         }}
-                        className="px-3 py-1.5 bg-[#141F1A] hover:bg-[#1E5A44] text-white rounded-full font-bold text-[10px] inline-flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                        className="px-3 py-1.5 bg-[#141F1A] hover:bg-[#1E5A44] text-white rounded-full font-bold text-[10px] inline-flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
                       >
                         <span>Inspect</span>
                         <ArrowRight className="w-3 h-3" />

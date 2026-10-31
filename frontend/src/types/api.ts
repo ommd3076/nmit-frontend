@@ -6,7 +6,7 @@ export type VehicleStatus = 'active' | 'idle' | 'at_risk' | 'delayed' | 'mainten
 
 export type StopStatus = 'pending' | 'en_route' | 'arrived' | 'completed' | 'at_risk' | 'failed';
 
-export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted';
+export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted' | 'timed_out' | 'infeasible' | 'partial';
 
 export type ProvenanceBadge =
   | 'Validated'
@@ -109,19 +109,26 @@ export interface PlanRun {
   vehicles: Vehicle[];
   routes: Route[];
   bounds?: [[number, number], [number, number]]; // [[minLng, minLat], [maxLng, maxLat]]
+  data_source?: 'fixture' | 'computed';
 }
 
 export interface SolverJob {
   id: string;
   scenario_id: string;
   status: JobStatus;
-  progress_pct: number;
-  elapsed_seconds: number;
+  /** Backend does not currently report progress; null means unavailable. */
+  progress_pct: null;
+  /** Age since submission while active, or observed runtime when terminal. */
+  elapsed_seconds: number | null;
   engine: string;
   provenance_badge: ProvenanceBadge;
   result_plan_id: string | null;
   error_message: string | null;
   submitted_at: string;
+  execution_type: string;
+  result: unknown;
+  error: unknown;
+  metadata: Record<string, unknown> | null;
 }
 
 export interface OperationalEvent {
@@ -138,6 +145,8 @@ export interface OperationalEvent {
 export interface CalibrationPoint {
   predicted_prob: number;
   observed_freq: number;
+  bin_idx?: number;
+  sample_count?: number;
 }
 
 export interface EngineBenchmark {
@@ -151,18 +160,20 @@ export interface EngineBenchmark {
 
 export interface IntelligenceEvidence {
   model_name: string;
-  brier_score: number;
-  brier_reduction_pct: number;
-  regret_reduction_pct: number;
+  brier_score: number | null;
+  brier_reduction_pct: number | null;
+  regret_reduction_pct: number | null;
   user_claim_verified: boolean;
   user_claim_note: string;
   calibration_points: CalibrationPoint[];
   benchmarks: EngineBenchmark[];
   quantum_circuit_summary: {
     type: string;
-    qubits: number;
+    qubits: number | null;
     backend_mode: string;
     execution_badge: ProvenanceBadge;
+    depth?: number;
+    entanglement?: string;
   };
   disclaimer: string;
 }
@@ -179,6 +190,6 @@ export interface SystemHealth {
   backend_url: string;
   version: string;
   timestamp: string;
-  capacity: SystemCapacity;
+  capacity: SystemCapacity | null;
   engines_available: string[];
 }

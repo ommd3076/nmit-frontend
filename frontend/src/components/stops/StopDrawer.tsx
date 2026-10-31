@@ -106,7 +106,7 @@ export const StopDrawer: React.FC<StopDrawerProps> = ({
 
         <div className="flex items-center justify-between">
           <span className="text-[#68756F] font-medium">SLA Penalty Exposure:</span>
-          <span className="tabular-nums font-extrabold text-[#C6534C] text-sm">
+          <span className="tabular-nums font-bold text-[#C6534C] text-sm">
             ₹{stop.penalty_exposure_inr.toLocaleString('en-IN')}
             <span className="text-[10px] text-[#68756F] font-normal ml-1">
               (assumed rate ₹83/$)

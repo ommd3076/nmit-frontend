@@ -1,205 +1,36 @@
-# arQ API Endpoints Contract (`/api/v1/*`)
+# arQ web API contract
 
-This document defines the REST API contract between the arQ web command center and the dispatch/optimization backend.
+The web client calls only the FastAPI routes below. `VITE_API_URL` may set an API origin; when unset, requests use same-origin relative `/api/v1/*` paths. The client never supplies demo data when a read fails.
 
-Base URL: `VITE_API_URL` (default `http://127.0.0.1:8000`).
+## Health and persisted display data
 
----
+| Method | Path | Client behavior |
+| --- | --- | --- |
+| GET | `/api/v1/health` | A successful response must include `api_version`, `capacity`, and `engines_available`. A network failure yields an offline state, empty engine list, and unknown (`null`) capacity. Invalid successful payloads are errors. |
+| GET | `/api/v1/runs` | Returns `PlanRun[]` from the backend. A run must have identifiers, `vehicles`, `routes`, and `validator_result`. No fixtures are substituted. |
+| GET | `/api/v1/runs/{run_id}` | Returns a validated `PlanRun`; backend 404 maps to `null`. |
+| GET | `/api/v1/intelligence/evidence` | Returns backend evidence payload; no bundled evidence fallback. |
+| GET | `/api/v1/events` | Returns backend events; malformed rows are rejected. |
 
-## 1. System & Health
+Runs currently originate from `RunsService` display fixtures and are marked `provenance_badge: Preview` plus `data_source: fixture`. They are not proof of a live operation. The evidence endpoint returns null scores and empty measured series until verified run artifacts are connected. Fixture narrative events are excluded from the operational events feed.
 
-### `GET /api/v1/health`
-Checks backend responsiveness, database WAL status, and available solver concurrency.
-- **Request:** None
-- **Response `200 OK`:**
-  ```json
-  {
-    "status": "healthy",
-    "version": "1.0.0",
-    "timestamp": "2026-10-29T14:30:00Z",
-    "capacity": {
-      "max_slots": 2,
-      "active_slots": 1,
-      "available_slots": 1
-    },
-    "engines_available": [
-      "exact_enumeration",
-      "financial_cover",
-      "qpiai_opt_local",
-      "qaoa_warm_start",
-      "vqc_inference",
-      "gbdt_platt"
-    ]
-  }
-  ```
-- **Errors:** `503 Service Unavailable` if WAL or engine is unresponsive.
+## Jobs
 
----
+| Method | Path | Contract |
+| --- | --- | --- |
+| POST | `/api/v1/solve` | Request is `{scenario_id, engine, penalty_weights?}`. Backend responds `202` with `{job_id,status,submitted_at,poll_url,engine,scenario_id}`. `429` with error code `capacity_reached` is returned in the existing caller-compatible union; other errors throw `ApiError`. Backend code may load its own tiny fixture when no scenario is supplied, so a successful submission alone is not evidence the requested scenario was used. |
+| GET | `/api/v1/jobs` | Persisted job records. Client preserves server status/result/error/metadata. |
+| GET | `/api/v1/jobs/{job_id}` | Poll one persisted record. |
+| POST | `/api/v1/jobs/{job_id}/cancel` | Returns the server's job record. `cancelJob` is true only when that record says `cancelled`; terminal or missing jobs are not optimistically changed. |
 
-## 2. Plan Runs & Routing
+Job status values include `queued`, `running`, `succeeded`, `failed`, `cancelled`, `interrupted`, `timed_out`, `infeasible`, and `partial`. The backend does not expose progress percentage or result run IDs in its job schema; these fields remain `null`. Active elapsed time is age since submission; terminal elapsed time uses recorded start/completion timestamps when present. Execution provenance comes from `metadata.execution_type` and `metadata.solver`.
 
-### `GET /api/v1/runs`
-Lists recent optimization and dispatch plan runs.
-- **Query params:** `limit=20`, `status=active|archived`, `scenario_id`
-- **Response `200 OK`:**
-  ```json
-  [
-    {
-      "id": "run-blr-20261029-01",
-      "scenario_name": "Bengaluru Urban Express",
-      "status": "active",
-      "created_at": "2026-10-29T08:15:00Z",
-      "engine": "financial_cover",
-      "provenance_badge": "Exact (financial cover)",
-      "total_vehicles": 4,
-      "total_stops": 28,
-      "completed_stops": 11,
-      "total_sla_exposure_inr": 14250,
-      "assumed_rate_label": "assumed rate ₹83/$",
-      "validator_status": "passed"
-    }
-  ]
-  ```
+## Recovery
 
-### `GET /api/v1/runs/{id}`
-Fetches complete plan graph: vehicles, assigned routes, ordered stops, commitment windows, predicted ETAs, coordinates, and validator proof.
-- **Path param:** `id` (e.g. `run-blr-20261029-01`)
-- **Response `200 OK`:** See `PlanRun` interface in `frontend/src/types/api.ts`.
-- **Errors:** `404 Not Found`.
+`POST /api/v1/recovery/replan` accepts `{run_id,vehicle_id,delayed_stop_id,delay_minutes,locked_stop_ids}`. The client returns only fields in the backend response (`success`, `audit_log`, `exposure_delta_inr`, `reordered_count`, optional `updated_run`). The current service contains fixture-oriented behavior; its audit string and exposure delta are reported as returned, without client-side edits or synthetic events.
 
----
+## Errors and timeouts
 
-## 3. Optimization Solver & Jobs
+Non-2xx responses become `ApiError` with a stable backend error code where supplied, HTTP status, message, and details. Network errors use `network_error`. The health read is the sole exception: a reachable-state failure renders the explicit disconnected health value needed by the status surface. Reads time out after 10 seconds; health after 2 seconds; solve submission and recovery after 30 seconds.
 
-### `POST /api/v1/solve`
-Submits an async optimization job. Concurrency is limited by `BoundedSemaphore(2)`.
-- **Request Body:**
-  ```json
-  {
-    "scenario_id": "blr-north",
-    "engine": "qpiai_opt" | "qaoa" | "financial" | "exact",
-    "penalty_weights": {
-      "delay_weight": 1.5,
-      "mileage_weight": 0.8
-    },
-    "seed": 42
-  }
-  ```
-- **Response `202 Accepted`:**
-  ```json
-  {
-    "job_id": "job-8921-solve",
-    "status": "queued",
-    "submitted_at": "2026-10-29T14:32:00Z",
-    "poll_url": "/api/v1/jobs/job-8921-solve"
-  }
-  ```
-- **Response `429 Too Many Requests` (`capacity_reached`):**
-  ```json
-  {
-    "detail": "capacity_reached",
-    "message": "Solver busy: 2 runs already in progress. Retry in 4s.",
-    "active_jobs": ["job-8919-solve", "job-8920-solve"],
-    "retry_after_seconds": 4
-  }
-  ```
-
-### `GET /api/v1/jobs`
-Lists active and recent solver jobs.
-- **Response `200 OK`:** Array of `SolverJob`.
-
-### `GET /api/v1/jobs/{id}`
-Polls job state. Frontend polls every 1s for the first 10s, then backoff to every 3s until terminal (`succeeded`, `failed`, `cancelled`, `interrupted`).
-- **Response `200 OK`:**
-  ```json
-  {
-    "id": "job-8921-solve",
-    "status": "running",
-    "progress_pct": 65,
-    "elapsed_seconds": 8.4,
-    "engine": "qpiai_opt",
-    "provenance_badge": "QpiAI Opt · local solver",
-    "result_plan_id": null,
-    "error_message": null
-  }
-  ```
-
-### `POST /api/v1/jobs/{id}/cancel`
-Requests cancellation of an active job.
-- **Response `200 OK`:**
-  ```json
-  {
-    "id": "job-8921-solve",
-    "status": "cancelled",
-    "cancelled_at": "2026-10-29T14:32:15Z"
-  }
-  ```
-
----
-
-## 4. Mid-Shift Recovery (`recovery.py`)
-
-### `POST /api/v1/recovery/replan`
-Triggers mid-shift re-plan with locked prefix (already completed/dispatched stops) and delay perturbation.
-- **Request Body:**
-  ```json
-  {
-    "run_id": "run-blr-20261029-01",
-    "vehicle_id": "van-03",
-    "delayed_stop_id": "stop-blr-14",
-    "delay_minutes": 25,
-    "locked_stop_ids": ["stop-blr-01", "stop-blr-02", "stop-blr-03"]
-  }
-  ```
-- **Response `200 OK`:**
-  ```json
-  {
-    "new_run_id": "run-blr-recovery-02",
-    "provenance_badge": "Classical re-plan",
-    "audit_log": {
-      "timestamp": "2026-10-29T14:35:00Z",
-      "actor": "recovery.py",
-      "reason": "Vehicle Van-03 delay +25m at Hebbal Junction",
-      "stops_reordered": 5,
-      "sla_breaches_prevented": 2,
-      "exposure_delta_inr": -3400
-    },
-    "validator_result": {
-      "passed": true,
-      "constraints_checked": ["time_windows", "capacity", "battery_range"],
-      "errors": []
-    }
-  }
-  ```
-
----
-
-## 5. Intelligence & Validation Evidence
-
-### `GET /api/v1/intelligence/evidence`
-Retrieves model evaluation, Platt calibration curve, and engine benchmark comparisons.
-- **Response `200 OK`:**
-  ```json
-  {
-    "model_evaluation": {
-      "brier_score": 0.142,
-      "brier_reduction_pct": -46.9,
-      "claim_note": "Observed on experiments_run2 validation partition",
-      "regret_reduction_pct": -30.8
-    },
-    "calibration_curve": [
-      { "predicted_prob": 0.1, "observed_freq": 0.09 },
-      { "predicted_prob": 0.3, "observed_freq": 0.28 },
-      { "predicted_prob": 0.5, "observed_freq": 0.51 },
-      { "predicted_prob": 0.7, "observed_freq": 0.69 },
-      { "predicted_prob": 0.9, "observed_freq": 0.88 }
-    ],
-    "engine_benchmarks": [
-      { "engine": "Exact enumeration", "gap_to_optimum_pct": 0.0, "feasibility_pct": 100.0, "runtime_seconds": 18.2 },
-      { "engine": "Financial exact cover", "gap_to_optimum_pct": 0.2, "feasibility_pct": 100.0, "runtime_seconds": 4.1 },
-      { "engine": "QpiAI Opt (local QUBO)", "gap_to_optimum_pct": 1.4, "feasibility_pct": 98.5, "runtime_seconds": 1.8 },
-      { "engine": "Warm-start QAOA", "gap_to_optimum_pct": 2.1, "feasibility_pct": 96.0, "runtime_seconds": 3.2 }
-    ],
-    "disclaimer": "No speed-up claimed. Solvers benchmarked on constrained routing instances."
-  }
-  ```
+API calls do not retry POST requests automatically. Job polling cadence is owned by the screen; a status must be refreshed from the server before a terminal transition is shown.

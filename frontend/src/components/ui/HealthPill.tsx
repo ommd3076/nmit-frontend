@@ -11,8 +11,8 @@ export const HealthPill: React.FC<HealthPillProps> = ({ health, onRefresh }) => 
   const [isOpen, setIsOpen] = useState(false);
 
   const isOnline = health?.status === 'healthy';
-  const activeSlots = health?.capacity.active_slots ?? 1;
-  const maxSlots = health?.capacity.max_slots ?? 2;
+  const activeSlots = health?.capacity?.active_slots ?? 0;
+  const maxSlots = health?.capacity?.max_slots ?? 2;
 
   return (
     <div className="relative inline-block text-left">

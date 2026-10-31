@@ -70,7 +70,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({ events, onRefresh })
           <div>
             <div className="flex items-center space-x-2">
               <Activity className="w-5 h-5 text-[#1E5A44]" />
-              <h2 className="text-xl font-extrabold text-[#141F1A] tracking-tight">
+              <h2 className="text-xl font-bold text-[#141F1A] tracking-tight">
                 Operational Event Stream & Audit Trail
               </h2>
             </div>
@@ -157,7 +157,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({ events, onRefresh })
                 {/* Event Details */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between">
-                    <h4 className="font-extrabold text-xs text-[#15211D]">
+                    <h4 className="font-bold text-xs text-[#15211D]">
                       {evt.title}
                     </h4>
                     <span className="text-[11px] font-mono text-[#929E99] tabular-nums">

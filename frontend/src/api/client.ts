@@ -1,294 +1,230 @@
-import {
-  PlanRun,
-  SolverJob,
-  OperationalEvent,
-  IntelligenceEvidence,
-  SystemHealth
-} from '../types/api';
-import {
-  BENGALURU_SCENARIO,
-  SOLOMON_SCENARIO,
-  INTELLIGENCE_EVIDENCE,
-  OPERATIONAL_EVENTS,
-  DEFAULT_HEALTH
-} from '../data/mockScenarios';
+import type { IntelligenceEvidence, OperationalEvent, PlanRun, SolverJob, SystemHealth } from '../types/api';
+import { getApiToken, redactApiToken } from './auth';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-
-// In-memory state for client-side stateful demonstration
-let activeScenarios: Record<string, PlanRun> = {
-  [BENGALURU_SCENARIO.id]: JSON.parse(JSON.stringify(BENGALURU_SCENARIO)),
-  [SOLOMON_SCENARIO.id]: JSON.parse(JSON.stringify(SOLOMON_SCENARIO))
-};
-
-let currentHealth: SystemHealth = {
-  ...DEFAULT_HEALTH,
-  backend_url: API_BASE_URL
-};
-
-let simulatedJobs: SolverJob[] = [
-  {
-    id: 'job-8921-solve',
-    scenario_id: 'blr-urban-express',
-    status: 'running',
-    progress_pct: 65,
-    elapsed_seconds: 6.2,
-    engine: 'qpiai_opt_local',
-    provenance_badge: 'QpiAI Opt · local solver',
-    result_plan_id: null,
-    error_message: null,
-    submitted_at: new Date(Date.now() - 6200).toISOString()
-  },
-  {
-    id: 'job-8919-solve',
-    scenario_id: 'blr-urban-express',
-    status: 'succeeded',
-    progress_pct: 100,
-    elapsed_seconds: 4.1,
-    engine: 'financial_cover',
-    provenance_badge: 'Exact (financial cover)',
-    result_plan_id: 'run-blr-20261029-01',
-    error_message: null,
-    submitted_at: new Date(Date.now() - 3600000).toISOString()
+// Empty means same-origin `/api/v1/*` through Vite proxy; Vitest/Node uses direct localhost:8000.
+const getBaseUrl = (): string => {
+  if (typeof window !== 'undefined' && window.location.port === '5173') {
+    return '';
   }
-];
+  return (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+};
+const API_BASE_URL = getBaseUrl();
+const API = `${API_BASE_URL}/api/v1`;
 
-let eventsLog: OperationalEvent[] = [...OPERATIONAL_EVENTS];
+export class ApiError extends Error {
+  constructor(readonly code: string, message: string, readonly status: number, readonly details?: unknown) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, any> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function requireRecord(value: unknown, label: string): Record<string, any> {
+  if (!isRecord(value)) throw new ApiError('invalid_response', `Backend returned an invalid ${label} response`, 502);
+  return value;
+}
+
+function requireArray<T>(value: unknown, label: string, validate: (item: unknown) => item is T): T[] {
+  if (!Array.isArray(value) || !value.every(validate)) throw new ApiError('invalid_response', `Backend returned invalid ${label}`, 502);
+  return value;
+}
+
+function isRun(value: unknown): value is PlanRun {
+  return isRecord(value) && typeof value.id === 'string' && typeof value.scenario_id === 'string' &&
+    Array.isArray(value.vehicles) && Array.isArray(value.routes) && isRecord(value.validator_result);
+}
+
+const TERMINAL = new Set(['succeeded', 'failed', 'cancelled', 'interrupted', 'timed_out', 'infeasible', 'partial']);
+const JOB_STATUSES = new Set(['queued', 'running', ...TERMINAL]);
+function nonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function jobFromApi(value: unknown, expectedId?: string): SolverJob {
+  const job = requireRecord(value, 'job');
+  if (!nonEmptyString(job.id) || !JOB_STATUSES.has(job.status) ||
+      !nonEmptyString(job.submitted_at) || !Number.isFinite(Date.parse(job.submitted_at)) ||
+      (expectedId !== undefined && job.id !== expectedId)) {
+    throw new ApiError('invalid_response', 'Backend returned an invalid job record', 502);
+  }
+  const started = typeof job.started_at === 'string' ? Date.parse(job.started_at) : NaN;
+  const submitted = Date.parse(job.submitted_at);
+  const elapsed = Number.isFinite(started) && TERMINAL.has(job.status)
+    ? Math.max(0, (Date.parse(job.completed_at || job.started_at) - started) / 1000)
+    : Number.isFinite(submitted) ? Math.max(0, (Date.now() - submitted) / 1000) : null;
+  const badge = job.metadata?.solver === 'exact_enumeration' && job.metadata?.execution_type === 'local_classical'
+    ? 'Exact (enumeration)' : 'Preview';
+  return {
+    id: job.id,
+    status: job.status,
+    submitted_at: job.submitted_at,
+    scenario_id: job.metadata?.settings?.scenario_id ?? 'unknown',
+    engine: job.metadata?.solver ?? 'unknown',
+    execution_type: job.metadata?.execution_type ?? 'unavailable',
+    progress_pct: null,
+    elapsed_seconds: elapsed,
+    result: job.result ?? null,
+    error: job.error ?? null,
+    error_message: job.error?.message ?? null,
+    result_plan_id: null,
+    provenance_badge: badge,
+    metadata: job.metadata ?? null
+  } as SolverJob;
+}
+
+async function request(path: string, init: RequestInit = {}, timeoutMs = 10_000): Promise<{ response: Response; abortError: () => ApiError | null; finish: () => void }> {
+  const controller = new AbortController();
+  const callerSignal = init.signal;
+  let timedOut = false;
+  const abortFromCaller = () => controller.abort();
+  if (callerSignal?.aborted) controller.abort();
+  else callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  let response: Response;
+  try {
+    const headers = new Headers(init.headers);
+    const token = getApiToken();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    response = await fetch(`${API}${path}`, { ...init, headers, signal: controller.signal });
+  } catch {
+    clearTimeout(timer);
+    callerSignal?.removeEventListener('abort', abortFromCaller);
+    if (timedOut) throw new ApiError('timeout', `Backend request timed out after ${timeoutMs}ms`, 0);
+    if (callerSignal?.aborted) throw new ApiError('request_aborted', 'Backend request was cancelled', 0);
+    throw new ApiError('network_error', `Can't reach backend at ${API_BASE_URL || window.location.origin}`, 0);
+  }
+  return { response, abortError: () => {
+    if (timedOut) return new ApiError('timeout', `Backend request timed out after ${timeoutMs}ms`, 0);
+    if (callerSignal?.aborted) return new ApiError('request_aborted', 'Backend request was cancelled', 0);
+    return null;
+  }, finish: () => {
+    clearTimeout(timer);
+    callerSignal?.removeEventListener('abort', abortFromCaller);
+  } };
+}
+
+async function json(path: string, init?: RequestInit, timeoutMs?: number): Promise<unknown> {
+  const { response, abortError, finish } = await request(path, init, timeoutMs);
+  try {
+    if (!response.ok) {
+      let payload: any;
+      try { payload = await response.json(); }
+      catch {
+        const aborted = abortError();
+        if (aborted) throw aborted;
+        payload = null;
+      }
+      const error = payload?.error ?? payload?.detail?.error ?? {};
+      const code = typeof error.code === 'string' ? String(redactApiToken(error.code)) : response.status === 429 ? 'capacity_reached' : `http_${response.status}`;
+      const message = typeof error.message === 'string' ? String(redactApiToken(error.message)) : typeof payload?.detail === 'string' ? String(redactApiToken(payload.detail)) : `Backend request failed (${response.status})`;
+      throw new ApiError(code, message, response.status, redactApiToken(error.details ?? payload?.details));
+    }
+    try { return await response.json(); }
+    catch {
+      const aborted = abortError();
+      if (aborted) throw aborted;
+      throw new ApiError('invalid_response', 'Backend returned invalid JSON', 502);
+    }
+  } finally {
+    finish();
+  }
+}
+
+const post = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
 export const apiClient = {
-  getBaseUrl(): string {
-    return API_BASE_URL;
-  },
+  getBaseUrl: () => API_BASE_URL,
 
-  async getHealth(): Promise<SystemHealth> {
+  async getHealth(signal?: AbortSignal): Promise<SystemHealth> {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/health`, {
-        signal: AbortSignal.timeout(2000)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        currentHealth = { ...data, status: 'healthy', backend_url: API_BASE_URL };
-        return currentHealth;
+      const value = requireRecord(await json('/health', { signal }, 2_000), 'health');
+      if (typeof value.api_version !== 'string' || !isRecord(value.capacity) || !Array.isArray(value.engines_available)) {
+        throw new ApiError('invalid_response', 'Backend returned incomplete health data', 502);
       }
-    } catch {
-      // Backend not running; fallback to verified local state
-    }
-    // Update active slots based on jobs
-    const runningCount = simulatedJobs.filter(j => j.status === 'running' || j.status === 'queued').length;
-    currentHealth = {
-      ...currentHealth,
-      status: 'offline', // honest state
-      capacity: {
-        max_slots: 2,
-        active_slots: runningCount,
-        available_slots: Math.max(0, 2 - runningCount),
-        active_job_ids: simulatedJobs.filter(j => j.status === 'running').map(j => j.id)
-      }
-    };
-    return currentHealth;
-  },
-
-  async getRuns(): Promise<PlanRun[]> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/runs`, {
-        signal: AbortSignal.timeout(3000)
-      });
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch {
-      // Fallback to local scenarios
-    }
-    return Object.values(activeScenarios);
-  },
-
-  async getRun(id: string): Promise<PlanRun | null> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/runs/${id}`, {
-        signal: AbortSignal.timeout(3000)
-      });
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch {
-      // Fallback
-    }
-    return activeScenarios[id] || Object.values(activeScenarios)[0] || null;
-  },
-
-  async submitSolve(params: {
-    scenario_id: string;
-    engine: string;
-    penalty_weights?: { delay_weight: number; mileage_weight: number };
-  }): Promise<{ job_id: string } | { error: 'capacity_reached'; retry_after: number }> {
-    const runningCount = simulatedJobs.filter(j => j.status === 'running' || j.status === 'queued').length;
-    if (runningCount >= 2) {
       return {
-        error: 'capacity_reached',
-        retry_after: 4
+        status: 'healthy', backend_url: API_BASE_URL || window.location.origin,
+        version: value.version ?? value.api_version, timestamp: value.timestamp,
+        capacity: value.capacity as SystemHealth['capacity'], engines_available: value.engines_available
       };
+    } catch (error) {
+      if (error instanceof ApiError && (error.code === 'invalid_response' || error.code === 'request_aborted')) throw error;
+      return { status: 'offline', backend_url: API_BASE_URL || window.location.origin, version: 'unavailable', timestamp: new Date().toISOString(), capacity: null, engines_available: [] };
     }
-
-    const newJobId = `job-${Math.floor(1000 + Math.random() * 9000)}-solve`;
-    const newJob: SolverJob = {
-      id: newJobId,
-      scenario_id: params.scenario_id,
-      status: 'running',
-      progress_pct: 10,
-      elapsed_seconds: 0.5,
-      engine: params.engine,
-      provenance_badge: params.engine === 'qpiai_opt'
-        ? 'QpiAI Opt · local solver'
-        : params.engine === 'qaoa'
-        ? 'QAOA (warm start)'
-        : 'Exact (financial cover)',
-      result_plan_id: null,
-      error_message: null,
-      submitted_at: new Date().toISOString()
-    };
-
-    simulatedJobs = [newJob, ...simulatedJobs];
-
-    // Log the event
-    eventsLog = [
-      {
-        id: `evt-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        severity: 'info',
-        category: 'job_lifecycle',
-        title: 'Solver Run Dispatched',
-        description: `Dispatched optimization job ${newJobId} using ${params.engine}. Concurrency: ${runningCount + 1}/2 slots.`,
-        actor: 'Dispatcher'
-      },
-      ...eventsLog
-    ];
-
-    return { job_id: newJobId };
   },
 
-  async getJobs(): Promise<SolverJob[]> {
-    // Advance progress on running jobs
-    simulatedJobs = simulatedJobs.map(job => {
-      if (job.status === 'running') {
-        const nextPct = Math.min(100, job.progress_pct + 25);
-        const nextElapsed = +(job.elapsed_seconds + 1.2).toFixed(1);
-        if (nextPct >= 100) {
-          return {
-            ...job,
-            progress_pct: 100,
-            elapsed_seconds: nextElapsed,
-            status: 'succeeded',
-            result_plan_id: BENGALURU_SCENARIO.id
-          };
-        }
-        return {
-          ...job,
-          progress_pct: nextPct,
-          elapsed_seconds: nextElapsed
-        };
-      }
-      return job;
-    });
-
-    return [...simulatedJobs];
+  async getRuns(signal?: AbortSignal): Promise<PlanRun[]> {
+    return requireArray(await json('/runs', { signal }), 'runs', isRun);
   },
 
-  async cancelJob(id: string): Promise<boolean> {
-    simulatedJobs = simulatedJobs.map(job => {
-      if (job.id === id) {
-        return {
-          ...job,
-          status: 'cancelled'
-        };
-      }
-      return job;
-    });
-
-    eventsLog = [
-      {
-        id: `evt-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        severity: 'warning',
-        category: 'job_lifecycle',
-        title: 'Job Cancelled',
-        description: `Solver job ${id} was cancelled by dispatcher. Slot released.`,
-        actor: 'Dispatcher'
-      },
-      ...eventsLog
-    ];
-
-    return true;
-  },
-
-  async executeRecoveryReplan(params: {
-    run_id: string;
-    vehicle_id: string;
-    delayed_stop_id: string;
-    delay_minutes: number;
-    locked_stop_ids: string[];
-  }): Promise<{
-    success: boolean;
-    audit_log: string;
-    exposure_delta_inr: number;
-    reordered_count: number;
-  }> {
-    const run = activeScenarios[params.run_id] || activeScenarios[BENGALURU_SCENARIO.id];
-    if (run) {
-      // Mark locked stops and re-order downstream pending stops
-      run.routes = run.routes.map(r => {
-        if (r.vehicle_id === params.vehicle_id) {
-          return {
-            ...r,
-            stops: r.stops.map(s => {
-              if (params.locked_stop_ids.includes(s.id) || s.status === 'completed') {
-                return { ...s, is_locked: true };
-              }
-              if (s.id === params.delayed_stop_id) {
-                return {
-                  ...s,
-                  notes: `Recovery active: delayed +${params.delay_minutes}m absorbed via slack window`
-                };
-              }
-              return s;
-            })
-          };
-        }
-        return r;
-      });
-
-      // Reduce SLA exposure as a result of intelligent re-planning
-      run.total_sla_exposure_inr = Math.max(0, run.total_sla_exposure_inr - 3400);
-      run.provenance_badge = 'Classical re-plan';
+  async getRun(id: string, signal?: AbortSignal): Promise<PlanRun | null> {
+    try {
+      const result = await json(`/runs/${encodeURIComponent(id)}`, { signal });
+      if (!isRun(result)) throw new ApiError('invalid_response', 'Backend returned an invalid run record', 502);
+      return result;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) return null;
+      throw error;
     }
-
-    const auditDesc = `Mid-shift recovery re-plan executed by recovery.py. Locked ${params.locked_stop_ids.length} stops; preserved 2 downstream SLA windows; net exposure reduced by ₹3,400.`;
-
-    eventsLog = [
-      {
-        id: `evt-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        severity: 'success',
-        category: 'recovery',
-        title: 'Recovery Re-plan Committed',
-        description: auditDesc,
-        actor: 'recovery.py'
-      },
-      ...eventsLog
-    ];
-
-    return {
-      success: true,
-      audit_log: auditDesc,
-      exposure_delta_inr: -3400,
-      reordered_count: 3
-    };
   },
 
-  async getIntelligenceEvidence(): Promise<IntelligenceEvidence> {
-    return INTELLIGENCE_EVIDENCE;
+  async submitSolve(params: { scenario_id: string; engine: string; penalty_weights?: { delay_weight: number; mileage_weight: number } }, signal?: AbortSignal): Promise<{ job_id: string; status: string; poll_url: string } | { error: 'capacity_reached'; retry_after: number }> {
+    try {
+      const value = requireRecord(await json('/solve', { ...post(params), signal }, 30_000), 'solve submission');
+      const expectedPollUrl = nonEmptyString(value.job_id) ? `/api/v1/jobs/${encodeURIComponent(value.job_id)}` : '';
+      if (!nonEmptyString(value.job_id) || !['queued', 'running'].includes(value.status) ||
+          !nonEmptyString(value.submitted_at) || !Number.isFinite(Date.parse(value.submitted_at)) ||
+          value.poll_url !== expectedPollUrl) {
+        throw new ApiError('invalid_response', 'Backend returned an invalid job submission', 502);
+      }
+      return { job_id: value.job_id, status: value.status, poll_url: value.poll_url };
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'capacity_reached') return { error: 'capacity_reached', retry_after: 4 };
+      throw error;
+    }
   },
 
-  async getOperationalEvents(): Promise<OperationalEvent[]> {
-    return eventsLog;
-  }
+  async getJobs(signal?: AbortSignal): Promise<SolverJob[]> {
+    return requireArray(await json('/jobs', { signal }), 'jobs', isRecord).map((job) => jobFromApi(job));
+  },
+
+  async getJob(id: string, signal?: AbortSignal): Promise<SolverJob> { return jobFromApi(await json(`/jobs/${encodeURIComponent(id)}`, { signal }), id); },
+
+  async cancelJob(id: string, signal?: AbortSignal): Promise<boolean> {
+    const value = jobFromApi(await json(`/jobs/${encodeURIComponent(id)}/cancel`, { method: 'POST', signal }), id);
+    return value.status === 'cancelled';
+  },
+
+  async executeRecoveryReplan(params: { run_id: string; vehicle_id: string; delayed_stop_id: string; delay_minutes: number; locked_stop_ids: string[] }, signal?: AbortSignal): Promise<{ success: boolean; audit_log: string; exposure_delta_inr: number; reordered_count: number; updated_run?: PlanRun }> {
+    const value = requireRecord(await json('/recovery/replan', { ...post(params), signal }, 30_000), 'recovery');
+    if (typeof value.success !== 'boolean' || typeof value.audit_log !== 'string' || typeof value.exposure_delta_inr !== 'number' || typeof value.reordered_count !== 'number') {
+      throw new ApiError('invalid_response', 'Backend returned an invalid recovery result', 502);
+    }
+    if (value.updated_run !== undefined && !isRun(value.updated_run)) throw new ApiError('invalid_response', 'Backend returned an invalid recovery run', 502);
+    return value as { success: boolean; audit_log: string; exposure_delta_inr: number; reordered_count: number; updated_run?: PlanRun };
+  },
+
+  async getIntelligenceEvidence(signal?: AbortSignal): Promise<IntelligenceEvidence> {
+    const value = requireRecord(await json('/intelligence/evidence', { signal }), 'intelligence evidence');
+    if (typeof value.model_name !== 'string' || typeof value.disclaimer !== 'string' ||
+        !Array.isArray(value.calibration_points) || !Array.isArray(value.benchmarks) ||
+        !isRecord(value.quantum_circuit_summary) ||
+        (value.quantum_circuit_summary.qubits !== null && typeof value.quantum_circuit_summary.qubits !== 'number')) {
+      throw new ApiError('invalid_response', 'Backend returned incomplete intelligence evidence', 502);
+    }
+    return value as IntelligenceEvidence;
+  },
+
+  async getOperationalEvents(signal?: AbortSignal): Promise<OperationalEvent[]> {
+    return requireArray(await json('/events', { signal }), 'events', (item): item is OperationalEvent => isRecord(item) && typeof item.id === 'string' && typeof item.timestamp === 'string' && typeof item.title === 'string');
+  },
+
+  async getDemoState(driverId = 'driver_1', signal?: AbortSignal): Promise<unknown> { return json(`/demo/state?driver_id=${encodeURIComponent(driverId)}`, { signal }); },
+  async reportDemoCongestion(driverId: string, severity: 'moderate' | 'heavy', note: string, signal?: AbortSignal): Promise<unknown> { return json('/demo/reports', { ...post({ driver_id: driverId, severity, note }), signal }); },
+  async acknowledgeDemoRoute(driverId: string, version: number, signal?: AbortSignal): Promise<unknown> { return json('/demo/acknowledgements', { ...post({ driver_id: driverId, version }), signal }); }
 };

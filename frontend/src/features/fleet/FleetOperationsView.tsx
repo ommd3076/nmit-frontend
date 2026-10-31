@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { PlanRun, Vehicle } from '../../types/api';
+import { EvilRadialProgress, EvilFleetRadialDistribution } from '../../components/charts/EvilRadialChart';
 import {
   Truck,
   Phone,
@@ -52,7 +53,7 @@ export const FleetOperationsView: React.FC<FleetOperationsViewProps> = ({
         {/* Top Header & Search Bar */}
         <div className="flex flex-wrap items-center justify-between pb-4 border-b border-[#EAE6DF] gap-4">
           <div>
-            <h2 className="text-xl font-extrabold text-[#141F1A] tracking-tight">
+            <h2 className="text-xl font-bold text-[#141F1A] tracking-tight">
               Fleet Operations & Telemetry
             </h2>
             <p className="text-xs text-[#7D8D85] mt-0.5">
@@ -91,33 +92,36 @@ export const FleetOperationsView: React.FC<FleetOperationsViewProps> = ({
           </div>
         </div>
 
-        {/* Atlas Metric Strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 my-4">
-          <div className="p-4 bg-[#F5F3ED]/60 border border-[#E5E0D8] rounded-2xl">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-[#7D8D85] block">Assigned Fleet</span>
-            <div className="text-2xl font-black text-[#141F1A] tabular-nums mt-1">{plan.vehicles.length} Units</div>
-            <span className="text-[10px] text-[#1E5A44] font-semibold">100% active dispatch</span>
-          </div>
-          <div className="p-4 bg-[#F5F3ED]/60 border border-[#E5E0D8] rounded-2xl">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-[#7D8D85] block">Payload Utilization</span>
-            <div className="text-2xl font-black text-[#141F1A] tabular-nums mt-1">
-              {Math.round((plan.vehicles.reduce((acc, v) => acc + v.used_capacity_kg, 0) / plan.vehicles.reduce((acc, v) => acc + v.capacity_kg, 1)) * 100)}%
+        {/* Fleet Metric Strip with EvilCharts Radial Distribution */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 my-4">
+          <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="p-4 bg-[#F5F3ED]/60 border border-[#E5E0D8] rounded-2xl flex flex-col justify-between">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-[#7D8D85] block">Payload Utilization</span>
+              <div className="text-2xl font-bold text-[#141F1A] tabular-nums mt-1">
+                {Math.round((plan.vehicles.reduce((acc, v) => acc + v.used_capacity_kg, 0) / plan.vehicles.reduce((acc, v) => acc + v.capacity_kg, 1)) * 100)}%
+              </div>
+              <span className="text-[10px] text-[#4D5C54] font-medium tabular-nums">{plan.vehicles.reduce((acc, v) => acc + v.used_capacity_kg, 0)} / {plan.vehicles.reduce((acc, v) => acc + v.capacity_kg, 0)} kg</span>
             </div>
-            <span className="text-[10px] text-[#4D5C54] font-medium tabular-nums">{plan.vehicles.reduce((acc, v) => acc + v.used_capacity_kg, 0)} / {plan.vehicles.reduce((acc, v) => acc + v.capacity_kg, 0)} kg</span>
-          </div>
-          <div className="p-4 bg-[#F5F3ED]/60 border border-[#E5E0D8] rounded-2xl">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-[#7D8D85] block">Fleet Stop Progress</span>
-            <div className="text-2xl font-black text-[#1E5A44] tabular-nums mt-1">
-              {plan.completed_stops} / {plan.total_stops}
+            <div className="p-4 bg-[#F5F3ED]/60 border border-[#E5E0D8] rounded-2xl flex flex-col justify-between">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-[#7D8D85] block">Fleet Stop Progress</span>
+              <div className="text-2xl font-bold text-[#1E5A44] tabular-nums mt-1">
+                {plan.completed_stops} / {plan.total_stops}
+              </div>
+              <span className="text-[10px] text-[#4D5C54] font-medium tabular-nums">{Math.round((plan.completed_stops / plan.total_stops) * 100)}% complete</span>
             </div>
-            <span className="text-[10px] text-[#4D5C54] font-medium tabular-nums">{Math.round((plan.completed_stops / plan.total_stops) * 100)}% complete</span>
-          </div>
-          <div className="p-4 bg-[#F5F3ED]/60 border border-[#E5E0D8] rounded-2xl">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-[#7D8D85] block">Impending Delays</span>
-            <div className="text-2xl font-black text-[#DC2626] tabular-nums mt-1">
-              {plan.vehicles.filter(v => v.status === 'at_risk' || v.eta_deviation_minutes > 5).length} Units
+            <div className="p-4 bg-[#F5F3ED]/60 border border-[#E5E0D8] rounded-2xl flex flex-col justify-between">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-[#7D8D85] block">Active Fleet</span>
+              <div className="text-2xl font-bold text-[#141F1A] tabular-nums mt-1">{plan.vehicles.length} Units</div>
+              <span className="text-[10px] text-[#1E5A44] font-semibold">{plan.vehicles.filter(v => v.status === 'active').length} on the road</span>
             </div>
-            <span className="text-[10px] text-[#DC2626] font-semibold">SLA exposure buffer active</span>
+          </div>
+          <div className="lg:col-span-1">
+            <EvilFleetRadialDistribution
+              totalCount={plan.total_stops}
+              onScheduleCount={plan.completed_stops}
+              atRiskCount={plan.routes.flatMap(r => r.stops).filter(s => !s.is_completed && (s.status === 'at_risk' || (s.predicted_late_prob_max || 0) > 0.3)).length}
+              criticalCount={plan.routes.flatMap(r => r.stops).filter(s => !s.is_completed && (s.status === 'failed' || (s.predicted_late_prob_max || 0) > 0.6)).length}
+            />
           </div>
         </div>
 
@@ -158,7 +162,7 @@ export const FleetOperationsView: React.FC<FleetOperationsViewProps> = ({
                           style={{ backgroundColor: route?.color_token || '#2563EB' }}
                         />
                         <div>
-                          <div className="font-extrabold text-[#141F1A]">{vehicle.callsign}</div>
+                          <div className="font-bold text-[#141F1A]">{vehicle.callsign}</div>
                           <div className="text-[11px] text-[#7D8D85]">{vehicle.vehicle_type}</div>
                         </div>
                       </div>
@@ -244,7 +248,7 @@ export const FleetOperationsView: React.FC<FleetOperationsViewProps> = ({
                 <span className="text-[10px] uppercase font-bold text-[#7D8D85]">
                   Vehicle Telemetry Dossier
                 </span>
-                <h3 className="text-base font-extrabold text-[#141F1A]">
+                <h3 className="text-base font-bold text-[#141F1A]">
                   {selectedVehicle.callsign}
                 </h3>
                 <p className="text-[#7D8D85]">{selectedVehicle.vehicle_type}</p>
@@ -270,19 +274,38 @@ export const FleetOperationsView: React.FC<FleetOperationsViewProps> = ({
                 </div>
               </div>
 
-              {/* Real-time Telemetry */}
+              {/* EvilCharts Radial Telemetry */}
+              <div className="p-3 bg-[#F5F3ED]/70 border border-[#E5E0D8] rounded-2xl flex items-center justify-around">
+                <EvilRadialProgress
+                  value={selectedVehicle.battery_or_fuel_pct}
+                  size={76}
+                  label={`${selectedVehicle.battery_or_fuel_pct}%`}
+                  sublabel="Charge"
+                  color={selectedVehicle.battery_or_fuel_pct > 25 ? "#1E5A44" : "#DC2626"}
+                  gradientId={`drawerBatt-${selectedVehicle.id}`}
+                />
+                <EvilRadialProgress
+                  value={Math.round((selectedVehicle.used_capacity_kg / selectedVehicle.capacity_kg) * 100)}
+                  size={76}
+                  label={`${Math.round((selectedVehicle.used_capacity_kg / selectedVehicle.capacity_kg) * 100)}%`}
+                  sublabel="Payload"
+                  color="#2563EB"
+                  gradientId={`drawerCap-${selectedVehicle.id}`}
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="p-3 bg-[#F5F3ED]/70 border border-[#E5E0D8] rounded-2xl">
-                  <div className="text-[10px] uppercase font-bold text-[#7D8D85]">Battery / Fuel</div>
-                  <div className="text-sm font-extrabold text-[#1E5A44] mt-0.5 tabular-nums">
-                    {selectedVehicle.battery_or_fuel_pct}%
+                  <div className="text-[10px] uppercase font-bold text-[#7D8D85]">Speed</div>
+                  <div className="text-sm font-bold text-[#141F1A] mt-0.5 tabular-nums">
+                    {selectedVehicle.speed_kmh || 35} km/h
                   </div>
                 </div>
 
                 <div className="p-3 bg-[#F5F3ED]/70 border border-[#E5E0D8] rounded-2xl">
-                  <div className="text-[10px] uppercase font-bold text-[#7D8D85]">Speed</div>
-                  <div className="text-sm font-extrabold text-[#141F1A] mt-0.5 tabular-nums">
-                    {selectedVehicle.speed_kmh || 35} km/h
+                  <div className="text-[10px] uppercase font-bold text-[#7D8D85]">Stops Done</div>
+                  <div className="text-sm font-bold text-[#1E5A44] mt-0.5 tabular-nums">
+                    {selectedVehicle.completed_stops_count} / {selectedVehicle.assigned_stops_count}
                   </div>
                 </div>
               </div>

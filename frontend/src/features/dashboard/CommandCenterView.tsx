@@ -3,6 +3,7 @@ import { PlanRun } from '../../types/api';
 import { RouteMap } from '../../components/map/RouteMap';
 import { StopDrawer } from '../../components/stops/StopDrawer';
 import { DataBadge } from '../../components/ui/DataBadge';
+import { EvilRadialProgress } from '../../components/charts/EvilRadialChart';
 import {
   Truck,
   CheckCircle2,
@@ -109,7 +110,7 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
         {/* Scenario Header Bar */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-extrabold text-[#141F1A] tracking-tight">
+            <h1 className="text-xl font-bold text-[#141F1A] tracking-tight">
               {plan.scenario_name}
             </h1>
             <div className="flex items-center space-x-2 mt-1 text-xs text-[#4D5C54]">
@@ -136,47 +137,23 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
           {/* Card 1: Fleet Efficiency Donut (Atlas Ref 1) */}
           <div className="bg-white p-4 rounded-2xl border border-[#EAE6DF] shadow-xs flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              {/* Segmented Donut Chart */}
-              <div className="relative w-14 h-14 shrink-0">
-                <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                  <circle cx="18" cy="18" r="14" fill="none" stroke="#F5F3ED" strokeWidth="3.5" />
-                  <circle
-                    cx="18"
-                    cy="18"
-                    r="14"
-                    fill="none"
-                    stroke="#1E5A44"
-                    strokeWidth="3.5"
-                    strokeDasharray="67, 100"
-                    strokeLinecap="round"
-                  />
-                  <circle
-                    cx="18"
-                    cy="18"
-                    r="14"
-                    fill="none"
-                    stroke="#D97706"
-                    strokeWidth="3.5"
-                    strokeDasharray="20, 100"
-                    strokeDashoffset="-67"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                  <span className="text-xs font-black text-[#141F1A] tabular-nums leading-none">
-                    {plan.vehicles.length}
-                  </span>
-                  <span className="text-[8px] uppercase tracking-wider text-[#7D8D85] font-semibold mt-0.5">
-                    Fleet
-                  </span>
-                </div>
+              {/* EvilCharts Radial Progress */}
+              <div className="shrink-0 flex items-center justify-center">
+                <EvilRadialProgress
+                  value={71}
+                  size={64}
+                  label={`${plan.vehicles.length}`}
+                  sublabel="Fleet"
+                  color="#1E5A44"
+                  gradientId="cmdFleetRadial"
+                />
               </div>
 
               <div>
                 <div className="text-[11px] font-bold uppercase tracking-wider text-[#7D8D85]">
                   Fleet In-Field
                 </div>
-                <div className="text-lg font-black text-[#141F1A] tabular-nums mt-0.5">
+                <div className="text-lg font-bold text-[#141F1A] tabular-nums mt-0.5">
                   71% <span className="text-[11px] font-semibold text-[#1E5A44] ml-1">↗ +4%</span>
                 </div>
                 <div className="flex items-center space-x-2 text-[10px] text-[#4D5C54] mt-0.5 font-medium">
@@ -196,30 +173,22 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
           {/* Card 2: Delivery Status & Performance Ring (Atlas Ref 1) */}
           <div className="bg-white p-4 rounded-2xl border border-[#EAE6DF] shadow-xs flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="relative w-14 h-14 shrink-0">
-                <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                  <circle cx="18" cy="18" r="14" fill="none" stroke="#F5F3ED" strokeWidth="3.5" />
-                  <circle
-                    cx="18"
-                    cy="18"
-                    r="14"
-                    fill="none"
-                    stroke="#2563EB"
-                    strokeWidth="3.5"
-                    strokeDasharray={`${progressPct}, 100`}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5 text-[#2563EB]" />
-                </div>
+              <div className="shrink-0 flex items-center justify-center">
+                <EvilRadialProgress
+                  value={progressPct}
+                  size={64}
+                  label={`${progressPct}%`}
+                  sublabel="Stops"
+                  color="#2563EB"
+                  gradientId="cmdStopsRadial"
+                />
               </div>
 
               <div>
                 <div className="text-[11px] font-bold uppercase tracking-wider text-[#7D8D85]">
                   Delivery Status
                 </div>
-                <div className="text-lg font-black text-[#141F1A] tabular-nums mt-0.5">
+                <div className="text-lg font-bold text-[#141F1A] tabular-nums mt-0.5">
                   89% <span className="text-xs font-normal text-[#4D5C54]">Within Time Limit</span>
                 </div>
                 <div className="text-[10px] text-[#7D8D85] mt-0.5 tabular-nums">
@@ -237,7 +206,7 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
               <div className="text-[11px] font-bold uppercase tracking-wider text-[#7D8D85]">
                 SLA Exposure
               </div>
-              <div className="text-xl font-black text-[#DC2626] tabular-nums mt-0.5">
+              <div className="text-xl font-bold text-[#DC2626] tabular-nums mt-0.5">
                 ₹{plan.total_sla_exposure_inr.toLocaleString('en-IN')}
                 <span className="text-[10px] font-normal text-[#4D5C54] ml-1.5">
                   ({plan.assumed_rate_label.split(' ')[2]})
@@ -354,7 +323,7 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
                     </div>
                     <div>
                       <div className="flex items-center space-x-2">
-                        <span className="font-extrabold text-sm text-[#141F1A]">
+                        <span className="font-bold text-sm text-[#141F1A]">
                           {activeVehicle.callsign}
                         </span>
                         <span
@@ -377,7 +346,7 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
 
                   {/* Battery & Payload */}
                   <div className="text-right">
-                    <div className="font-extrabold text-xs text-[#1E5A44] tabular-nums">
+                    <div className="font-semibold text-xs text-[#1E5A44] tabular-nums">
                       {activeVehicle.battery_or_fuel_pct}% Batt
                     </div>
                     <div className="text-[10px] text-[#7D8D85] tabular-nums">

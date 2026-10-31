@@ -83,7 +83,7 @@ describe('StopDrawer Component', () => {
 });
 
 describe('RouteMap Component (SVG Cartesian Benchmark)', () => {
-  it('renders flat metric space with depot (40,50) and stop sequence pins', () => {
+  it('renders the Cartesian depot and lets a dispatcher select an ordered stop and vehicle', () => {
     const handleSelectVehicle = vi.fn();
     const handleSelectStop = vi.fn();
 
@@ -98,11 +98,109 @@ describe('RouteMap Component (SVG Cartesian Benchmark)', () => {
     );
 
     expect(screen.getByText(/Solomon Euclidean Metric Space/i)).toBeInTheDocument();
-    expect(screen.getByText(/Depot \(40, 50\)/i)).toBeInTheDocument();
+    expect(SOLOMON_SCENARIO.routes[0].geometry_coordinates[0]).toEqual([40, 50]);
+    expect(screen.getByText('D')).toBeInTheDocument();
+    expect(screen.getByText('DEPOT')).toBeInTheDocument();
 
-    // Click depot or vehicle marker
-    const svgDepot = screen.getByText('D');
-    expect(svgDepot).toBeInTheDocument();
+    const route = SOLOMON_SCENARIO.routes[0];
+    const vehicle = SOLOMON_SCENARIO.vehicles.find((item) => item.id === route.vehicle_id)!;
+    const stop = route.stops.slice().sort((a, b) => a.sequence_idx - b.sequence_idx)[0];
+    fireEvent.click(screen.getByRole('button', { name: (name) => name.startsWith(`Stop ${stop.sequence_idx}, ${stop.customer_name}`) }));
+    expect(handleSelectStop).toHaveBeenCalledWith(stop.id);
+    expect(handleSelectVehicle).toHaveBeenCalledWith(vehicle.id);
+
+    const routeLabel = `${vehicle.callsign.split('-').slice(0, 2).join('-')}(${route.stops.length})`;
+    const routeButton = screen.getAllByRole('button').find((button) => button.textContent?.replace(/\s+/g, ' ').trim() === routeLabel);
+    expect(routeButton).toBeDefined();
+    fireEvent.click(routeButton!);
+    expect(handleSelectVehicle).toHaveBeenLastCalledWith(vehicle.id);
+  });
+});
+
+describe('Bengaluru Dispatch Route Geometry & Alignment', () => {
+  const DEPOT_LNG = 77.6300;
+  const DEPOT_LAT = 12.9800;
+
+  it('ensures all 4 routes originate and terminate at Central Hub ([77.63, 12.98])', () => {
+    expect(BENGALURU_SCENARIO.routes.length).toBe(4);
+
+    BENGALURU_SCENARIO.routes.forEach((route) => {
+      const coords = route.geometry_coordinates;
+      expect(coords.length).toBeGreaterThan(6);
+
+      // Origin
+      const [startLng, startLat] = coords[0];
+      expect(startLng).toBeCloseTo(DEPOT_LNG, 4);
+      expect(startLat).toBeCloseTo(DEPOT_LAT, 4);
+
+      // Return to depot (closed loop)
+      const [endLng, endLat] = coords[coords.length - 1];
+      expect(endLng).toBeCloseTo(DEPOT_LNG, 4);
+      expect(endLat).toBeCloseTo(DEPOT_LAT, 4);
+    });
+  });
+
+  it('ensures every stop is traversed in exact sequential order along the route polyline', () => {
+    BENGALURU_SCENARIO.routes.forEach((route) => {
+      let lastFoundIndex = -1;
+
+      route.stops.forEach((stop, idx) => {
+        const stopIndexInRoute = route.geometry_coordinates.findIndex(
+          ([lng, lat]) => Math.abs(lng - stop.lng!) < 1e-4 && Math.abs(lat - stop.lat!) < 1e-4
+        );
+
+        expect(stopIndexInRoute).toBeGreaterThan(-1); // Stop is directly on the polyline
+        expect(stopIndexInRoute).toBeGreaterThan(lastFoundIndex); // Stops appear in strictly sequential order
+        lastFoundIndex = stopIndexInRoute;
+        expect(stop.sequence_idx).toBe(idx + 1);
+      });
+    });
+  });
+
+  it('ensures all vehicle live telemetry coordinates sit directly along their corridor polylines', () => {
+    BENGALURU_SCENARIO.vehicles.forEach((veh) => {
+      const route = BENGALURU_SCENARIO.routes.find((r) => r.id === veh.route_id);
+      expect(route).toBeDefined();
+
+      const vehIndexInRoute = route!.geometry_coordinates.findIndex(
+        ([lng, lat]) => Math.abs(lng - veh.current_lng!) < 1e-4 && Math.abs(lat - veh.current_lat!) < 1e-4
+      );
+
+      expect(vehIndexInRoute).toBeGreaterThan(-1); // Vehicle is directly on a corridor waypoint
+    });
+  });
+
+  it('renders geographic coordinates in the SVG fallback with active route selection', () => {
+    const handleSelectVehicle = vi.fn();
+    const handleSelectStop = vi.fn();
+
+    render(
+      <RouteMap
+        plan={BENGALURU_SCENARIO}
+        selectedVehicleId={null}
+        selectedStopId={null}
+        onSelectVehicle={handleSelectVehicle}
+        onSelectStop={handleSelectStop}
+      />
+    );
+
+    expect(screen.getByText(BENGALURU_SCENARIO.scenario_name)).toBeInTheDocument();
+    expect(screen.getByText(/Active Routes \(4\)/i)).toBeInTheDocument();
+
+    const firstRoute = BENGALURU_SCENARIO.routes[0];
+    const vehicle = BENGALURU_SCENARIO.vehicles.find((item) => item.id === firstRoute.vehicle_id)!;
+    const routeLabel = `${vehicle.callsign.split('-').slice(0, 2).join('-')}(${firstRoute.stops.length})`;
+    fireEvent.click(screen.getByRole('button', { name: routeLabel }));
+    expect(handleSelectVehicle).toHaveBeenCalledWith(vehicle.id);
+
+    const stop = firstRoute.stops.slice().sort((a, b) => a.sequence_idx - b.sequence_idx)[0];
+    fireEvent.click(screen.getByRole('button', { name: (name) => name.startsWith(`Stop ${stop.sequence_idx}, ${stop.customer_name}`) }));
+    expect(handleSelectStop).toHaveBeenCalledWith(stop.id);
+    expect(handleSelectVehicle).toHaveBeenLastCalledWith(vehicle.id);
+
+    const svg = document.querySelector('svg polyline[points]');
+    expect(svg).toBeInTheDocument();
+    expect(svg?.getAttribute('points')).not.toMatch(/NaN|Infinity/);
   });
 });
 
@@ -122,7 +220,7 @@ describe('CommandCenterView Component', () => {
       />
     );
 
-    expect(screen.getByText(BENGALURU_SCENARIO.scenario_name)).toBeInTheDocument();
+    expect(screen.getAllByText(BENGALURU_SCENARIO.scenario_name)).toHaveLength(2);
     expect(screen.getByText(/Fleet In-Field/i)).toBeInTheDocument();
     expect(screen.getByText(/SLA Exposure/i)).toBeInTheDocument();
     expect(screen.getByText(BENGALURU_SCENARIO.vehicles[0].callsign)).toBeInTheDocument();
