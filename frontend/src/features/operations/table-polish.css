@@ -1,0 +1,29 @@
+/* Make keyboard focus and selected stops visible in dense route tables. */
+.arq-table tbody tr[tabindex]:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 3px solid #39775a;
+  outline-offset: -3px;
+  background: #edf5ef;
+}
+
+.arq-table tbody tr.row-selected {
+  background: #f0f6f1;
+}
+
+.arq-table tbody tr.row-selected td:first-child {
+  box-shadow: inset 3px 0 #286549;
+}
+
+.arq-table tbody td:last-child {
+  color: #42564a;
+  font-weight: 600;
+}
+
+.arq-table tbody td:nth-child(3) {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arq-table tbody tr { transition: none; }
+}

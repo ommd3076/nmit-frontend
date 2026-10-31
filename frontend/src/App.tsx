@@ -12,6 +12,7 @@ import './App.css';
 import './features/operations/interactions.css';
 import './features/operations/accessibility.css';
 import './features/operations/responsive.css';
+import './features/operations/table-polish.css';
 
 function viewFromHash(): NavView {
   const key=window.location.hash.replace(/^#\/?/,'').split('/')[0];
