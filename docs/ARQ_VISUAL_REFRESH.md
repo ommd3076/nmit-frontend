@@ -6,6 +6,8 @@ The generated route illustration lives at `frontend/src/assets/brand/arq-route-e
 
 The Vite page now uses its bundled Inter font and forest-green route favicon. It no longer fetches display fonts from Google at runtime.
 
+The follow-up polish improves contrast for secondary labels, gives mobile search a dedicated header row, and adds a clear focus outline plus selected-stop marker in the route table. The no-catalog illustration decodes asynchronously at low priority.
+
 ## Build evidence
 
 `cd frontend && npm run build` passed on 2026-10-31. TypeScript and Vite completed; Vite reported that the main JavaScript chunk exceeds 500 kB. No frontend test suite or device build was run in this change.
