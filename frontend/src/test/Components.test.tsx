@@ -204,6 +204,79 @@ describe('Bengaluru Dispatch Route Geometry & Alignment', () => {
   });
 });
 
+describe('Bengaluru Dispatch Route Geometry & Alignment', () => {
+  const DEPOT_LNG = 77.6300;
+  const DEPOT_LAT = 12.9800;
+
+  it('ensures all 4 routes originate and terminate at Central Hub ([77.63, 12.98])', () => {
+    expect(BENGALURU_SCENARIO.routes.length).toBe(4);
+
+    BENGALURU_SCENARIO.routes.forEach((route) => {
+      const coords = route.geometry_coordinates;
+      expect(coords.length).toBeGreaterThan(6);
+
+      // Origin
+      const [startLng, startLat] = coords[0];
+      expect(startLng).toBeCloseTo(DEPOT_LNG, 4);
+      expect(startLat).toBeCloseTo(DEPOT_LAT, 4);
+
+      // Return to depot (closed loop)
+      const [endLng, endLat] = coords[coords.length - 1];
+      expect(endLng).toBeCloseTo(DEPOT_LNG, 4);
+      expect(endLat).toBeCloseTo(DEPOT_LAT, 4);
+    });
+  });
+
+  it('ensures every stop is traversed in exact sequential order along the route polyline', () => {
+    BENGALURU_SCENARIO.routes.forEach((route) => {
+      let lastFoundIndex = -1;
+
+      route.stops.forEach((stop, idx) => {
+        const stopIndexInRoute = route.geometry_coordinates.findIndex(
+          ([lng, lat]) => Math.abs(lng - stop.lng!) < 1e-4 && Math.abs(lat - stop.lat!) < 1e-4
+        );
+
+        expect(stopIndexInRoute).toBeGreaterThan(-1); // Stop is directly on the polyline
+        expect(stopIndexInRoute).toBeGreaterThan(lastFoundIndex); // Stops appear in strictly sequential order
+        lastFoundIndex = stopIndexInRoute;
+        expect(stop.sequence_idx).toBe(idx + 1);
+      });
+    });
+  });
+
+  it('ensures all vehicle live telemetry coordinates sit directly along their corridor polylines', () => {
+    BENGALURU_SCENARIO.vehicles.forEach((veh) => {
+      const route = BENGALURU_SCENARIO.routes.find((r) => r.id === veh.route_id);
+      expect(route).toBeDefined();
+
+      const vehIndexInRoute = route!.geometry_coordinates.findIndex(
+        ([lng, lat]) => Math.abs(lng - veh.current_lng!) < 1e-4 && Math.abs(lat - veh.current_lat!) < 1e-4
+      );
+
+      expect(vehIndexInRoute).toBeGreaterThan(-1); // Vehicle is directly on a corridor waypoint
+    });
+  });
+
+  it('renders Bengaluru geospatial map with Central Hub depot and closed-loop route badges', () => {
+    const handleSelectVehicle = vi.fn();
+    const handleSelectStop = vi.fn();
+
+    render(
+      <RouteMap
+        plan={BENGALURU_SCENARIO}
+        selectedVehicleId={null}
+        selectedStopId={null}
+        onSelectVehicle={handleSelectVehicle}
+        onSelectStop={handleSelectStop}
+      />
+    );
+
+    expect(screen.getByText(/Bengaluru Dispatch Corridors/i)).toBeInTheDocument();
+    expect(screen.getByText(/Active Routes \(4\)/i)).toBeInTheDocument();
+    expect(screen.getByText('DEPOT')).toBeInTheDocument();
+  });
+});
+
 describe('CommandCenterView Component', () => {
   it('renders operational metrics and ordered stop itinerary', () => {
     const handleReplan = vi.fn();
@@ -314,3 +387,4 @@ describe('DispatchPlanningView Component', () => {
     );
   });
 });
+
